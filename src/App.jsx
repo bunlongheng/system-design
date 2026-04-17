@@ -26,7 +26,7 @@ const SERVICES = {
   cloudfront:   { label: 'CloudFront',        sub: 'CDN',                 icon: '/icons/cloudfront.png',  color: '#8C4FFF' },
   loadbalancer: { label: 'Load Balancer',     sub: 'Traffic Distribution',icon: '/icons/elb.png',         color: '#8C4FFF' },
   elb:          { label: 'Elastic LB',        sub: 'Load Balancer',       icon: '/icons/elb.png',         color: '#8C4FFF' },
-  nginx:        { label: 'Nginx',             sub: 'Reverse Proxy',       color: '#22c55e', emoji: '🔀' },
+  nginx:        { label: 'Nginx',             sub: 'Reverse Proxy',       icon: '/icons/nginx.svg',       color: '#22c55e' },
   zuul:         { label: 'Zuul Proxy',        sub: 'API Proxy',           color: '#a855f7', emoji: '🔀' },
   gateway:      { label: 'API Gateway',       sub: 'Entry Point',         icon: '/icons/apigateway.png',  color: '#a855f7' },
   // Service Discovery
@@ -43,8 +43,8 @@ const SERVICES = {
   postgres:     { label: 'PostgreSQL',        sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#1d4ed8' },
   mysql:        { label: 'MySQL',             sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#1d4ed8' },
   rds:          { label: 'RDS',               sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#1d4ed8' },
-  mongodb:      { label: 'MongoDB',           sub: 'Document DB',         color: '#22c55e', emoji: '🍃' },
-  redis:        { label: 'Redis',             sub: 'Cache / Session',     icon: '/icons/redis.png',       color: '#ef4444' },
+  mongodb:      { label: 'MongoDB',           sub: 'Document DB',         icon: '/icons/mongodb.svg',  color: '#22c55e' },
+  redis:        { label: 'Redis',             sub: 'Cache / Session',     icon: '/icons/redis-si.svg',    color: '#ef4444' },
   memcached:    { label: 'Memcached',         sub: 'EVCache',             icon: '/icons/elasticache.png', color: '#ef4444' },
   elasticache:  { label: 'ElastiCache',       sub: 'Cache Layer',         icon: '/icons/elasticache.png', color: '#ef4444' },
   // Storage
@@ -56,9 +56,9 @@ const SERVICES = {
   sqs:          { label: 'SQS',             sub: 'Message Queue',         icon: '/icons/sqs.png',         color: '#f59e0b' },
   sns:          { label: 'SNS',             sub: 'Notifications',         icon: '/icons/sns.png',         color: '#f59e0b' },
   eventbridge:  { label: 'EventBridge',     sub: 'Event Bus',             icon: '/icons/eventbridge.png', color: '#f59e0b' },
-  rabbitmq:     { label: 'RabbitMQ',        sub: 'Message Broker',        color: '#f97316', emoji: '🐇' },
+  rabbitmq:     { label: 'RabbitMQ',        sub: 'Message Broker',        icon: '/icons/rabbitmq.svg',    color: '#f97316' },
   // Stream Processing / ML
-  flink:        { label: 'Apache Flink',    sub: 'Stream Processing',     color: '#6366f1', emoji: '🌊' },
+  flink:        { label: 'Apache Flink',    sub: 'Stream Processing',     icon: '/icons/flink.svg',       color: '#6366f1' },
   spark:        { label: 'Apache Spark',    sub: 'Batch Processing',      color: '#f97316', emoji: '✨' },
   ml:           { label: 'ML Platform',     sub: 'Recommendations',       icon: '/icons/sagemaker.png',   color: '#8b5cf6' },
   sagemaker:    { label: 'SageMaker',       sub: 'ML Training',           icon: '/icons/sagemaker.png',   color: '#8b5cf6' },
@@ -66,8 +66,8 @@ const SERVICES = {
   elasticsearch:{ label: 'Elasticsearch',  sub: 'Logs & Search',         icon: '/icons/opensearch.png',  color: '#f59e0b' },
   opensearch:   { label: 'OpenSearch',      sub: 'Search & Analytics',    icon: '/icons/opensearch.png',  color: '#f59e0b' },
   atlas:        { label: 'Atlas',          sub: 'Monitoring',             color: '#ec4899', emoji: '📊' },
-  grafana:      { label: 'Grafana',        sub: 'Dashboards',             color: '#f97316', emoji: '📈' },
-  prometheus:   { label: 'Prometheus',     sub: 'Metrics',                color: '#ef4444', emoji: '🔥' },
+  grafana:      { label: 'Grafana',        sub: 'Dashboards',             icon: '/icons/grafana.svg',     color: '#f97316' },
+  prometheus:   { label: 'Prometheus',     sub: 'Metrics',                icon: '/icons/prometheus.svg',  color: '#ef4444' },
 }
 
 // ─── Custom Node ──────────────────────────────────────────────────────────────
