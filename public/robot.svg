@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Antenna stem -->
+  <line x1="12" y1="5" x2="12" y2="7" />
+  <!-- Antenna ball -->
+  <circle cx="12" cy="3.5" r="1.5" />
+  <!-- Body (pill-shaped) -->
+  <rect x="3" y="7" width="18" height="13" rx="7" />
+  <!-- Eyes -->
+  <circle cx="9" cy="12" r="1" />
+  <circle cx="15" cy="12" r="1" />
+  <!-- Smile -->
+  <path d="M9.5 15 Q12 17 14.5 15" />
+  <!-- Legs -->
+  <line x1="8.5" y1="20" x2="8.5" y2="23" />
+  <line x1="15.5" y1="20" x2="15.5" y2="23" />
+</svg>
