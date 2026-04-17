@@ -73,13 +73,28 @@ const SERVICES = {
 // ─── Custom Node ──────────────────────────────────────────────────────────────
 
 function findService(data) {
-  if (SERVICES[data.id]) return SERVICES[data.id]
-  // try matching by id keyword against SERVICES keys
-  const id = data.id?.toLowerCase() || ''
-  const byKey = Object.entries(SERVICES).find(([k]) => id.includes(k) || k.includes(id))
-  if (byKey) return byKey[1]
-  // try matching by label
   const lbl = (data.label || '').toLowerCase()
+  const id  = (data.id  || '').toLowerCase()
+
+  // Priority 1: exact id match with an icon
+  const byId = SERVICES[data.id]
+  if (byId?.icon) return byId
+
+  // Priority 2: label contains a known service name that has an icon
+  const byLabel = Object.values(SERVICES).find(s => s.icon && (() => {
+    const sl = s.label.toLowerCase()
+    return lbl === sl || lbl.startsWith(sl) || lbl.includes(sl)
+  })())
+  if (byLabel) return byLabel
+
+  // Priority 3: id keyword match with an icon
+  const byKeyIcon = Object.entries(SERVICES).find(([k, v]) => v.icon && (id.includes(k) || k.includes(id)))
+  if (byKeyIcon) return byKeyIcon[1]
+
+  // Priority 4: any id match (emoji fallback)
+  if (byId) return byId
+
+  // Priority 5: any label match
   return Object.values(SERVICES).find(s => {
     const sl = s.label.toLowerCase()
     return sl === lbl || sl.includes(lbl) || lbl.includes(sl)
