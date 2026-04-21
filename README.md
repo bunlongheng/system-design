@@ -1,16 +1,67 @@
-# React + Vite
+# System Design - Architecture Diagram Tool
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interactive system design and AWS architecture diagram tool with auto-layout, JIRA integration, and drag-and-drop component placement.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Layer | Technology |
+|-------|-----------|
+| Bundler | Vite (ES modules) |
+| UI | React 19.2.4, Tailwind CSS |
+| Language | TypeScript |
+| Graph Editor | @xyflow/react |
+| Layout Engine | @dagrejs/dagre |
+| Extras | canvas-confetti |
+| Database | None |
+| Port | 3006 |
 
-## React Compiler
+## Architecture
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Vite-powered React SPA with a visual flow editor. Dagre handles automatic graph layout so nodes arrange themselves cleanly. A Vite dev proxy forwards JIRA API requests to Atlassian using Basic auth, enabling system design data to be pulled directly from JIRA tickets.
 
-## Expanding the ESLint configuration
+```
+Browser --> React Flow Canvas --> Dagre Layout
+                |
+                +--> Vite Proxy --> Atlassian JIRA API (Basic Auth)
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Features
+
+- Interactive AWS and distributed system architecture diagrams
+- Auto-layout with Dagre algorithm
+- JIRA integration - pull system design data from Atlassian
+- Drag-and-drop component placement
+- Multiple infrastructure icons (server, database, load balancer, etc.)
+- Layer-based architecture views
+- Confetti celebrations on milestones
+
+## Project Structure
+
+```
+system-design/
+  src/
+    components/     # React UI components, custom nodes
+    App.tsx         # Main application entry
+  public/           # Static assets, infrastructure icons
+  vite.config.ts    # Vite config with JIRA proxy
+  tailwind.config.ts
+```
+
+## Scripts
+
+```bash
+npm run dev        # Start dev server on port 3006
+npm run build      # Production build
+npm run preview    # Preview production build
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `JIRA_EMAIL` | Atlassian account email for JIRA API auth |
+| `JIRA_TOKEN` | Atlassian API token for JIRA API auth |
+
+---
+
+Built by [Bunlong Heng](https://www.bunlongheng.com) | [GitHub](https://github.com/bunlongheng/system-design)
