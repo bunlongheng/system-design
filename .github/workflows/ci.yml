@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feat/ai-callable-artifact-api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: system_designs
+          # Trust auth: no password, so nothing credential-shaped is committed.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Non-secret e2e boot config. Real prod runs with NODE_ENV=production (via
+      # `npm run start`), which gates the local auth bypass OFF - so the e2e specs
+      # exercise the real Bearer/owner gates.
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres@localhost:5432/system_designs
+      DATABASE_SSL: "false"
+      OWNER_USER_ID: 00000000-0000-0000-0000-000000000001
+      SYSTEM_DESIGNS_APP_URL: https://system-design-bheng.vercel.app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Throwaway secret, generated fresh each run - never a real credential.
+      - name: Generate throwaway e2e secret
+        run: echo "SYSTEM_DESIGNS_API_SECRET=e2e-$(openssl rand -hex 16)" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Apply database migrations
+        run: |
+          for f in $(ls db/migrations/*.sql | sort); do
+            echo "applying $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      # E2E uses Playwright's APIRequestContext (HTTP only) - no browser needed.
+      - name: E2E (against a production build)
+        run: npm run test:e2e

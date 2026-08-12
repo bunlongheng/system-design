@@ -1,5 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+// Fail the production build if required env vars are missing (see lib/env.js).
+import './lib/env.js'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -9,6 +11,10 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
+        '/api': {
+          target: 'http://localhost:4321',
+          changeOrigin: true,
+        },
         '/jira': {
           target: 'https://thryv.atlassian.net',
           changeOrigin: true,
