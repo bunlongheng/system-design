@@ -28,10 +28,11 @@ jobs:
           --health-retries 5
 
     env:
-      # Non-secret e2e boot config. Real prod runs with NODE_ENV=production (via
-      # `npm run start`), which gates the local auth bypass OFF - so the e2e specs
-      # exercise the real Bearer/owner gates.
-      NODE_ENV: production
+      # Non-secret e2e boot config. NOTE: NODE_ENV is intentionally NOT set to
+      # production here - that would make `npm ci` skip devDependencies (vitest,
+      # playwright). The `npm run start` script sets NODE_ENV=production itself
+      # for the server process, so the local auth bypass is still gated OFF and
+      # the e2e specs exercise the real Bearer/owner gates.
       DATABASE_URL: postgres://postgres@localhost:5432/system_designs
       DATABASE_SSL: "false"
       OWNER_USER_ID: 00000000-0000-0000-0000-000000000001
