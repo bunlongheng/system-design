@@ -15,6 +15,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.join(__dirname, "migrations");
 
 async function main() {
+  // No DB configured (e.g. a Vercel preview deploy, or local without .env) -
+  // skip cleanly so `buildCommand: migrate && build` still succeeds. Production
+  // is still fail-closed: lib/env.js throws during the build if DATABASE_URL is
+  // missing on a production deploy.
+  if (!process.env.DATABASE_URL) {
+    console.log("migrate: DATABASE_URL not set - skipping migrations");
+    return;
+  }
+
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : false,
