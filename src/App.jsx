@@ -407,14 +407,16 @@ export default function App() {
     try {
       const { parseMermaid } = await import('./parseMermaid')
       const { nodes: n, edges: e } = parseMermaid(text)
-      if (!n.length) { showToastMsg('Nothing to render — check your syntax'); return }
+      if (!n.length) { showToastMsg('Nothing to render — check your syntax'); return null }
       setNodes(n)
       setEdges(e)
       pendingFit.current = true
       showToastMsg(`Rendered ${n.length} nodes · ${e.length} edges`)
       import('canvas-confetti').then(m => m.default({ particleCount: 120, spread: 80, origin: { y: 0.3 }, zIndex: 9999 }))
+      return { nodes: n, edges: e }
     } catch {
       showToastMsg('Could not parse diagram')
+      return null
     }
   }
 
@@ -466,15 +468,17 @@ export default function App() {
     setView('index')
   }
 
-  const onPaste = useCallback((e) => {
+  const onPaste = useCallback(async (e) => {
     const active = document.activeElement
     if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') return
     const text = e.clipboardData?.getData('text') || ''
     if (/graph\s+(LR|TD|RL|BT)/i.test(text)) {
-      renderDiagram(text)
+      const parsed = await renderDiagram(text)
+      if (!parsed) return
       setView('detail')
-      setActiveDiagram({ id: 'pasted', title: 'Pasted Diagram', data: null, updatedAt: new Date().toISOString() })
+      setActiveDiagram({ id: 'pasted', title: 'Pasted Diagram', data: parsed, updatedAt: new Date().toISOString() })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -543,7 +547,6 @@ export default function App() {
             .sd-main { padding: 20px 16px 100px !important; }
             .sd-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; gap: 10px !important; }
           }
-          ::-webkit-scrollbar { display: none; }
         `}</style>
 
         {/* ── Header ── */}
@@ -1002,7 +1005,7 @@ export default function App() {
               {activeDiagram?.tags?.length > 0 && (
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
                   {activeDiagram.tags.map(t => { const s = tagColor(t); return (
-                    <span key={t} style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: s.bg, color: s.text, border: `1px solid ${s.border}` }}>{t}</span>
+                    <span key={t} style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: s.bg, color: s.text, border: `1px solid ${s.border}` }}>{t}</span>
                   ); })}
                 </div>
               )}

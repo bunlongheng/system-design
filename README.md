@@ -92,6 +92,7 @@ curl -X POST https://system-design-bheng.vercel.app/api/ai/system-designs \
 | Route | Access | Notes |
 |-------|--------|-------|
 | `POST /api/ai/generate` | Owner/local **only** | Prompt -> Claude. The Bearer key is **rejected** (`authorizeOwner(req,{allowBearer:false})`) so public callers can never spend Anthropic credits. |
+| `GET /api/system-designs` | Public read | The owner's saved designs, newest first (max 60) - the gallery feed. |
 | `GET /api/system-designs/:id` | Public read | Returns a saved design's JSON (what the returned URL renders). |
 | `DELETE /api/system-designs/:id` | Bearer-gated | Removes an artifact. |
 | `GET /api/health` | Public | `200`/`503` liveness for the prod monitor (API secret + owner + DB). |
@@ -101,7 +102,9 @@ curl -X POST https://system-design-bheng.vercel.app/api/ai/system-designs \
 ```
 system-design/
   src/
-    App.jsx           # Main app - canvas, service icon config, diagram rendering
+    App.jsx           # Main app - gallery + detail canvas, diagram rendering
+    services.js        # AWS/GCP service icon catalog + lookup helpers
+    components/         # Extracted UI (ImportFormatsModal, ...)
     main.jsx           # React entry point
     parseMermaid.js    # Mermaid -> React Flow node/edge parser
     index.css           # Global styles
