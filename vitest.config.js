@@ -4,5 +4,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.js"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text"],
+      include: ["lib/**", "src/parseMermaid.js"],
+    },
   },
 });

@@ -8,7 +8,10 @@ export default defineConfig({
   timeout: 30_000,
   retries: 0,
   use: { baseURL: BASE },
-  projects: [{ name: "api" }],
+  projects: [
+    { name: "api", testMatch: /api\.spec\.js/ },
+    { name: "browser", testMatch: /render\.spec\.js/, use: { browserName: "chromium" } },
+  ],
   webServer: {
     // Prod build + prod-like server (NODE_ENV=production via `npm run start`),
     // NOT a dev server: the strict CSP has no 'unsafe-eval', which dev HMR needs,

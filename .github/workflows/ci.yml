@@ -52,16 +52,17 @@ jobs:
       - name: Generate throwaway e2e secret
         run: echo "SYSTEM_DESIGNS_API_SECRET=e2e-$(openssl rand -hex 16)" >> "$GITHUB_ENV"
 
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests
         run: npm run test
 
       - name: Apply database migrations
-        run: |
-          for f in $(ls db/migrations/*.sql | sort); do
-            echo "applying $f"
-            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
-          done
+        run: npm run migrate
 
-      # E2E uses Playwright's APIRequestContext (HTTP only) - no browser needed.
-      - name: E2E (against a production build)
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E (API + browser render, against a production build)
         run: npm run test:e2e

@@ -1,135 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { ReactFlow, Background, Handle, Position } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import confetti from 'canvas-confetti'
-import { parseMermaid } from './parseMermaid'
 import diagramData from './data/diagram.json'
-
-// ─── AWS Service Config ───────────────────────────────────────────────────────
-
-const SERVICES = {
-  apigw:        { label: 'API Gateway',       sub: 'External Trigger',   icon: '/icons/apigateway.png',    color: '#a855f7' },
-  lambda:       { label: 'Lambda',            sub: 'Trigger Handler',    icon: '/icons/lambda.png',        color: '#f97316' },
-  kms:          { label: 'KMS',               sub: 'Token Encryption',   icon: '/icons/kms.png',           color: '#ef4444' },
-  dynamo:       { label: 'DynamoDB',          sub: 'Token Store',        icon: '/icons/dynamodb.png',      color: '#dc2626' },
-  sfn:          { label: 'Step Functions',    sub: 'Multi-Action Flow',  icon: '/icons/stepfunctions.png', color: '#ec4899' },
-  cloudwatch:   { label: 'CloudWatch',        sub: 'Monitoring',         icon: '/icons/cloudwatch.png',    color: '#ec4899' },
-  cloudtrail:   { label: 'CloudTrail',        sub: 'Audit Logs',         icon: '/icons/cloudtrail.png',    color: '#ec4899' },
-  user:         { label: 'User',              sub: 'Client',             color: '#3b82f6', emoji: '👤' },
-  client:       { label: 'Client',            sub: 'Browser / App',      color: '#3b82f6', emoji: '💻' },
-  oauth:        { label: 'OAuth Provider',    sub: 'Auth Service',       color: '#22c55e', emoji: '🔐' },
-  auth:         { label: 'Auth Service',      sub: 'Authentication',     color: '#22c55e', emoji: '🔑' },
-  cdn:          { label: 'CDN',               sub: 'Open Connect',        icon: '/icons/cloudfront.png',  color: '#8C4FFF' },
-  cloudfront:   { label: 'CloudFront',        sub: 'CDN',                 icon: '/icons/cloudfront.png',  color: '#8C4FFF' },
-  loadbalancer: { label: 'Load Balancer',     sub: 'Traffic Distribution',icon: '/icons/elb.png',         color: '#8C4FFF' },
-  elb:          { label: 'Elastic LB',        sub: 'Load Balancer',       icon: '/icons/elb.png',         color: '#8C4FFF' },
-  nginx:        { label: 'Nginx',             sub: 'Reverse Proxy',       icon: '/icons/nginx.svg',       color: '#22c55e' },
-  zuul:         { label: 'Zuul Proxy',        sub: 'API Proxy',           color: '#a855f7', emoji: '🔀' },
-  gateway:      { label: 'API Gateway',       sub: 'Entry Point',         icon: '/icons/apigateway.png',  color: '#a855f7' },
-  eureka:       { label: 'Eureka',            sub: 'Service Discovery',   color: '#f59e0b', emoji: '🔍' },
-  consul:       { label: 'Consul',            sub: 'Service Discovery',   color: '#f59e0b', emoji: '🗺️' },
-  ec2:          { label: 'EC2',               sub: 'Virtual Servers',     icon: '/icons/ec2.png',         color: '#f97316' },
-  microservices:{ label: 'Microservices',     sub: 'Business Logic',      color: '#6366f1', emoji: '⚙️' },
-  service:      { label: 'Service',           sub: 'Microservice',        color: '#6366f1', emoji: '⚙️' },
-  encoder:      { label: 'Encoding Pipeline', sub: 'Media Processing',    color: '#f97316', emoji: '🎬' },
-  cassandra:    { label: 'Cassandra',         sub: 'NoSQL DB',            icon: '/icons/keyspaces.png',   color: '#1d4ed8' },
-  keyspaces:    { label: 'Keyspaces',         sub: 'Cassandra-compat',    icon: '/icons/keyspaces.png',   color: '#1d4ed8' },
-  postgres:     { label: 'PostgreSQL',        sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#1d4ed8' },
-  mysql:        { label: 'MySQL',             sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#1d4ed8' },
-  rds:          { label: 'RDS',               sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#1d4ed8' },
-  mongodb:      { label: 'MongoDB',           sub: 'Document DB',         icon: '/icons/mongodb.svg',  color: '#22c55e' },
-  redis:        { label: 'Redis',             sub: 'Cache / Session',     icon: '/icons/redis-si.svg',    color: '#ef4444' },
-  memcached:    { label: 'Memcached',         sub: 'EVCache',             icon: '/icons/elasticache.png', color: '#ef4444' },
-  elasticache:  { label: 'ElastiCache',       sub: 'Cache Layer',         icon: '/icons/elasticache.png', color: '#ef4444' },
-  s3:           { label: 'S3',               sub: 'Object Storage',       icon: '/icons/s3.png',          color: '#16a34a' },
-  storage:      { label: 'Storage',          sub: 'Object Store',         color: '#16a34a', emoji: '💾' },
-  kafka:        { label: 'Kafka',            sub: 'Event Streaming',      icon: '/icons/kafka.png',       color: '#1d4ed8' },
-  msk:          { label: 'MSK',             sub: 'Managed Kafka',         icon: '/icons/kafka.png',       color: '#1d4ed8' },
-  sqs:          { label: 'SQS',             sub: 'Message Queue',         icon: '/icons/sqs.png',         color: '#f59e0b' },
-  sns:          { label: 'SNS',             sub: 'Notifications',         icon: '/icons/sns.png',         color: '#f59e0b' },
-  eventbridge:  { label: 'EventBridge',     sub: 'Event Bus',             icon: '/icons/eventbridge.png', color: '#f59e0b' },
-  rabbitmq:     { label: 'RabbitMQ',        sub: 'Message Broker',        icon: '/icons/rabbitmq.svg',    color: '#f97316' },
-  flink:        { label: 'Apache Flink',    sub: 'Stream Processing',     icon: '/icons/flink.svg',       color: '#6366f1' },
-  spark:        { label: 'Apache Spark',    sub: 'Batch Processing',      color: '#f97316', emoji: '✨' },
-  ml:           { label: 'ML Platform',     sub: 'Recommendations',       icon: '/icons/sagemaker.png',   color: '#8b5cf6' },
-  sagemaker:    { label: 'SageMaker',       sub: 'ML Training',           icon: '/icons/sagemaker.png',   color: '#8b5cf6' },
-  elasticsearch:{ label: 'Elasticsearch',  sub: 'Logs & Search',         icon: '/icons/opensearch.png',  color: '#f59e0b' },
-  opensearch:   { label: 'OpenSearch',      sub: 'Search & Analytics',    icon: '/icons/opensearch.png',  color: '#f59e0b' },
-  atlas:        { label: 'Atlas',          sub: 'Monitoring',             color: '#ec4899', emoji: '📊' },
-  grafana:      { label: 'Grafana',        sub: 'Dashboards',             icon: '/icons/grafana.svg',     color: '#f97316' },
-  prometheus:   { label: 'Prometheus',     sub: 'Metrics',                icon: '/icons/prometheus.svg',  color: '#ef4444' },
-  // AWS — extended
-  ecs:          { label: 'ECS',            sub: 'Container Service',      icon: '/icons/aws-ecs.svg',     color: '#f97316' },
-  eks:          { label: 'EKS',            sub: 'Kubernetes',             icon: '/icons/aws-eks.svg',     color: '#f97316' },
-  fargate:      { label: 'Fargate',        sub: 'Serverless Compute',     icon: '/icons/aws-fargate.svg', color: '#f97316' },
-  route53:      { label: 'Route 53',       sub: 'DNS',                    icon: '/icons/aws-route53.svg', color: '#8C4FFF' },
-  waf:          { label: 'WAF',            sub: 'Web App Firewall',       icon: '/icons/aws-waf.svg',     color: '#ef4444' },
-  shield:       { label: 'Shield',         sub: 'DDoS Protection',        icon: '/icons/aws-shield.svg',  color: '#ef4444' },
-  cognito:      { label: 'Cognito',        sub: 'User Auth',              icon: '/icons/aws-cognito.svg', color: '#ef4444' },
-  iam:          { label: 'IAM',            sub: 'Identity & Access',      icon: '/icons/aws-iam.svg',     color: '#ef4444' },
-  secretsmanager:{ label: 'Secrets Manager',sub: 'Secret Store',          icon: '/icons/aws-secrets-manager.svg', color: '#ef4444' },
-  aurora:       { label: 'Aurora',         sub: 'Managed MySQL/Postgres', icon: '/icons/aws-aurora.svg',  color: '#1d4ed8' },
-  redshift:     { label: 'Redshift',       sub: 'Data Warehouse',         icon: '/icons/aws-redshift.svg',color: '#1d4ed8' },
-  kinesis:      { label: 'Kinesis',        sub: 'Real-time Streaming',    icon: '/icons/aws-kinesis.svg', color: '#6366f1' },
-  glue:         { label: 'Glue',           sub: 'ETL Service',            icon: '/icons/aws-glue.svg',    color: '#6366f1' },
-  athena:       { label: 'Athena',         sub: 'Serverless Query',       icon: '/icons/aws-athena.svg',  color: '#6366f1' },
-  cloudformation:{ label: 'CloudFormation',sub: 'IaC',                    icon: '/icons/aws-cloudformation.svg', color: '#ec4899' },
-  codepipeline: { label: 'CodePipeline',   sub: 'CI/CD Pipeline',         icon: '/icons/aws-codepipeline.svg', color: '#22c55e' },
-  codebuild:    { label: 'CodeBuild',      sub: 'Build Service',          icon: '/icons/aws-codebuild.svg',    color: '#22c55e' },
-  codedeploy:   { label: 'CodeDeploy',     sub: 'Deployment',             icon: '/icons/aws-codedeploy.svg',   color: '#22c55e' },
-  ecr:          { label: 'ECR',            sub: 'Container Registry',     icon: '/icons/aws-ecr.svg',     color: '#f97316' },
-  vpc:          { label: 'VPC',            sub: 'Virtual Network',        icon: '/icons/aws-vpc.svg',     color: '#8C4FFF' },
-  acm:          { label: 'ACM',            sub: 'Certificate Manager',    icon: '/icons/aws-acm.svg',     color: '#ef4444' },
-  ses:          { label: 'SES',            sub: 'Email Service',          icon: '/icons/aws-ses.svg',     color: '#f59e0b' },
-  amplify:      { label: 'Amplify',        sub: 'Frontend Hosting',       icon: '/icons/aws-amplify.svg', color: '#f97316' },
-  appsync:      { label: 'AppSync',        sub: 'GraphQL API',            icon: '/icons/aws-appsync.svg', color: '#a855f7' },
-  dynamostreams:{ label: 'DynamoDB Streams',sub: 'Change Data Capture',   icon: '/icons/aws-dynamodb-streams.svg', color: '#dc2626' },
-  elasticbeanstalk:{ label: 'Elastic Beanstalk',sub: 'App Platform',      icon: '/icons/aws-elasticbeanstalk.svg', color: '#f97316' },
-  // GCP
-  cloudrun:     { label: 'Cloud Run',      sub: 'Serverless Containers',  icon: '/icons/gcp-cloud-run.svg',      color: '#4285f4' },
-  gke:          { label: 'GKE',            sub: 'Kubernetes Engine',      icon: '/icons/gcp-gke.svg',            color: '#4285f4' },
-  cloudfunctions:{ label: 'Cloud Functions',sub: 'Serverless Functions',   icon: '/icons/gcp-cloud-functions.svg',color: '#4285f4' },
-  cloudstorage: { label: 'Cloud Storage',  sub: 'Object Storage',         icon: '/icons/gcp-cloud-storage.svg',  color: '#4285f4' },
-  bigquery:     { label: 'BigQuery',       sub: 'Data Warehouse',         icon: '/icons/gcp-bigquery.svg',       color: '#4285f4' },
-  cloudsql:     { label: 'Cloud SQL',      sub: 'Managed SQL',            icon: '/icons/gcp-cloud-sql.svg',      color: '#4285f4' },
-  pubsub:       { label: 'Pub/Sub',        sub: 'Message Queue',          icon: '/icons/gcp-pubsub.svg',         color: '#4285f4' },
-  cloudcdn:     { label: 'Cloud CDN',      sub: 'Content Delivery',       icon: '/icons/gcp-cloud-cdn.svg',      color: '#4285f4' },
-  gcplb:        { label: 'Cloud LB',       sub: 'Load Balancing',         icon: '/icons/gcp-cloud-load-balancing.svg', color: '#4285f4' },
-  firestore:    { label: 'Firestore',      sub: 'Document DB',            icon: '/icons/gcp-firestore.svg',      color: '#f59e0b' },
-  spanner:      { label: 'Spanner',        sub: 'Global SQL',             icon: '/icons/gcp-spanner.svg',        color: '#4285f4' },
-  memorystore:  { label: 'Memorystore',    sub: 'Managed Redis',          icon: '/icons/gcp-cloud-memorystore.svg', color: '#ef4444' },
-  cloudtasks:   { label: 'Cloud Tasks',    sub: 'Task Queue',             icon: '/icons/gcp-cloud-tasks.svg',    color: '#4285f4' },
-  cloudscheduler:{ label: 'Cloud Scheduler',sub: 'Cron Jobs',             icon: '/icons/gcp-cloud-scheduler.svg',color: '#4285f4' },
-  vertexai:     { label: 'Vertex AI',      sub: 'ML Platform',            icon: '/icons/gcp-vertex-ai.svg',      color: '#8b5cf6' },
-  cloudbuild:   { label: 'Cloud Build',    sub: 'CI/CD',                  icon: '/icons/gcp-cloud-build.svg',    color: '#4285f4' },
-  clouddeploy:  { label: 'Cloud Deploy',   sub: 'CD Pipeline',            icon: '/icons/gcp-cloud-deploy.svg',   color: '#4285f4' },
-  artifactregistry:{ label: 'Artifact Registry',sub: 'Container Registry',icon: '/icons/gcp-artifact-registry.svg', color: '#4285f4' },
-  cloudarmor:   { label: 'Cloud Armor',    sub: 'WAF / DDoS',             icon: '/icons/gcp-cloud-armor.svg',    color: '#ef4444' },
-  gcpiam:       { label: 'Cloud IAM',      sub: 'Identity & Access',      icon: '/icons/gcp-cloud-iam.svg',      color: '#ef4444' },
-  clouddns:     { label: 'Cloud DNS',      sub: 'DNS Service',            icon: '/icons/gcp-cloud-dns.svg',      color: '#4285f4' },
-  cloudlogging: { label: 'Cloud Logging',  sub: 'Log Management',         icon: '/icons/gcp-cloud-logging.svg',  color: '#f59e0b' },
-  cloudmonitoring:{ label: 'Cloud Monitoring',sub: 'Metrics & Alerts',    icon: '/icons/gcp-cloud-monitoring.svg',color: '#f59e0b' },
-  gcpgateway:   { label: 'API Gateway',    sub: 'GCP API Gateway',        icon: '/icons/gcp-api-gateway.svg',    color: '#4285f4' },
-}
-
-const PALETTE = ["#ef4444","#f97316","#eab308","#22c55e","#14b8a6","#06b6d4","#3b82f6","#8b5cf6","#ec4899","#f43f5e","#84cc16","#0891b2"]
-
-const TAG_PALETTE = [
-  { bg: '#ede9fe', text: '#7c3aed', border: '#c4b5fd' },
-  { bg: '#fef3c7', text: '#d97706', border: '#fcd34d' },
-  { bg: '#dbeafe', text: '#2563eb', border: '#93c5fd' },
-  { bg: '#dcfce7', text: '#16a34a', border: '#86efac' },
-  { bg: '#fce7f3', text: '#db2777', border: '#f9a8d4' },
-  { bg: '#e0e7ff', text: '#4f46e5', border: '#a5b4fc' },
-  { bg: '#ffedd5', text: '#ea580c', border: '#fdba74' },
-  { bg: '#f0fdfa', text: '#0d9488', border: '#5eead4' },
-]
-
-function tagColor(tag) {
-  let h = 0
-  for (let i = 0; i < tag.length; i++) h = ((h << 5) - h + tag.charCodeAt(i)) | 0
-  return TAG_PALETTE[Math.abs(h) % TAG_PALETTE.length]
-}
+import { PALETTE, tagColor, findService } from './services'
+import ImportFormatsModal from './components/ImportFormatsModal'
 
 const GITHUB_AVATAR = 'https://avatars.githubusercontent.com/u/11523064?v=4'
 
@@ -149,26 +23,7 @@ function relativeTime(d) {
 
 // ─── Custom Node ──────────────────────────────────────────────────────────────
 
-function findService(data) {
-  const lbl = (data.label || '').toLowerCase()
-  const id  = (data.id  || '').toLowerCase()
-  const byId = SERVICES[data.id]
-  if (byId?.icon) return byId
-  const byLabel = Object.values(SERVICES).find(s => s.icon && (() => {
-    const sl = s.label.toLowerCase()
-    return lbl === sl || lbl.startsWith(sl) || lbl.includes(sl)
-  })())
-  if (byLabel) return byLabel
-  const byKeyIcon = Object.entries(SERVICES).find(([k, v]) => v.icon && (id.includes(k) || k.includes(id)))
-  if (byKeyIcon) return byKeyIcon[1]
-  if (byId) return byId
-  return Object.values(SERVICES).find(s => {
-    const sl = s.label.toLowerCase()
-    return sl === lbl || sl.includes(lbl) || lbl.includes(sl)
-  }) || {}
-}
-
-function AwsNode({ data }) {
+const AwsNode = memo(function AwsNode({ data }) {
   const svc = findService(data)
   const color = svc.color || '#6b7280'
   const label = svc.label || data.label || data.id
@@ -196,11 +51,11 @@ function AwsNode({ data }) {
       </div>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', letterSpacing: '-0.1px', lineHeight: 1.3 }}>{label}</div>
-        {svc.sub && <div style={{ fontSize: 10, color, marginTop: 2, fontWeight: 600, opacity: 0.8 }}>{svc.sub}</div>}
+        {svc.sub && <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, fontWeight: 600 }}>{svc.sub}</div>}
       </div>
     </div>
   )
-}
+})
 
 const nodeTypes = { awsNode: AwsNode }
 
@@ -257,12 +112,19 @@ function DiagramMinimap({ diagram }) {
 
 function DiagramCard({ diagram, title, updatedAt, tags, onOpen, onViewCode, onDelete }) {
   const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const showActions = hovered || focused
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }}
       onClick={onOpen}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
       style={{
         background: '#ffffff', borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
         transition: 'box-shadow 0.15s, transform 0.15s',
@@ -284,7 +146,7 @@ function DiagramCard({ diagram, title, updatedAt, tags, onOpen, onViewCode, onDe
       {tags?.length > 0 && (
         <div style={{ padding: '0 13px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {tags.map(t => { const s = tagColor(t); return (
-            <span key={t} style={{ fontSize: 6, fontWeight: 700, padding: '1px 4px', borderRadius: 20, background: s.bg, color: s.text, border: `1px solid ${s.border}`, letterSpacing: '0.02em', lineHeight: 1.4 }}>{t}</span>
+            <span key={t} style={{ fontSize: 11, fontWeight: 700, padding: '1px 4px', borderRadius: 20, background: s.bg, color: s.text, border: `1px solid ${s.border}`, letterSpacing: '0.02em', lineHeight: 1.4 }}>{t}</span>
           ); })}
         </div>
       )}
@@ -294,8 +156,8 @@ function DiagramCard({ diagram, title, updatedAt, tags, onOpen, onViewCode, onDe
         <DiagramMinimap diagram={diagram} />
       </div>
 
-      {/* Hover actions */}
-      {hovered && (
+      {/* Hover / focus actions */}
+      {showActions && (
         <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
           <button onClick={onViewCode} title="View code"
             style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #e4e6e8', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
@@ -303,12 +165,14 @@ function DiagramCard({ diagram, title, updatedAt, tags, onOpen, onViewCode, onDe
               <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
             </svg>
           </button>
-          <button onClick={onDelete} title="Delete"
-            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #e4e6e8', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-            </svg>
-          </button>
+          {onDelete && (
+            <button onClick={onDelete} title="Delete"
+              style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #e4e6e8', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+              </svg>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -319,7 +183,7 @@ function DiagramCard({ diagram, title, updatedAt, tags, onOpen, onViewCode, onDe
 
 function Toast({ message, visible }) {
   return (
-    <div style={{
+    <div role="status" aria-live="polite" style={{
       position: 'fixed', top: 20, left: '50%',
       transform: `translateX(-50%) translateY(${visible ? 0 : -60}px)`,
       background: '#111827', color: '#fff',
@@ -452,8 +316,8 @@ function AIThinkingOverlay() {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
-// Sample diagrams for index page (in real app these would come from DB)
-const DIAGRAMS = [
+// Sample diagrams for index page (fallback when the API has none saved)
+const SEED = [
   { id: 'ifttt', title: 'IFTTT System Design', data: diagramData, updatedAt: new Date().toISOString(), tags: ['AWS', 'Architecture'] },
 ]
 
@@ -478,6 +342,9 @@ export default function App() {
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedShare, setCopiedShare] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
+  const [diagrams, setDiagrams] = useState(SEED)
+  const [loadingId, setLoadingId] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const rfInstance = useRef(null)
   const pendingFit = useRef(false)
   const menuRef = useRef(null)
@@ -486,6 +353,24 @@ export default function App() {
   const zoomHudTimer = useRef(null)
 
   useEffect(() => { if (showAIPrompt) aiInputRef.current?.focus() }, [showAIPrompt])
+
+  const loadDiagrams = useCallback(() => {
+    fetch('/api/system-designs')
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(rows => {
+        const mapped = rows.map(r => ({
+          id: r.id,
+          title: r.title,
+          data: { nodes: r.nodes, edges: r.edges },
+          updatedAt: r.created_at,
+          tags: r.tags || [],
+        }))
+        setDiagrams(mapped.length ? mapped : SEED)
+      })
+      .catch(() => setDiagrams(SEED))
+  }, [])
+
+  useEffect(() => { loadDiagrams() }, [loadDiagrams])
 
   async function submitAI() {
     if (!aiPrompt.trim() || aiThinking) return
@@ -500,12 +385,12 @@ export default function App() {
       if (!res.ok) { showToastMsg(data.error ?? 'Generation failed'); setAiThinking(false); return }
       // data should have { nodes, edges, title }
       const diagram = { id: `ai-${Date.now()}`, title: data.title || 'AI Generated', data: { nodes: data.nodes, edges: data.edges }, updatedAt: new Date().toISOString(), tags: ['AI'] }
-      DIAGRAMS.push(diagram)
       openDiagram(diagram)
+      loadDiagrams()
       setShowAIPrompt(false)
       setAiPrompt('')
       setAiThinking(false)
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.3 }, zIndex: 9999 })
+      import('canvas-confetti').then(m => m.default({ particleCount: 120, spread: 80, origin: { y: 0.3 }, zIndex: 9999 }))
       showToastMsg(`Generated "${data.title}" — ${data.nodes.length} nodes`)
     } catch {
       showToastMsg('Network error')
@@ -518,15 +403,16 @@ export default function App() {
     setTimeout(() => setToast(t => ({ ...t, visible: false })), 2500)
   }
 
-  function renderDiagram(text) {
+  async function renderDiagram(text) {
     try {
+      const { parseMermaid } = await import('./parseMermaid')
       const { nodes: n, edges: e } = parseMermaid(text)
       if (!n.length) { showToastMsg('Nothing to render — check your syntax'); return }
       setNodes(n)
       setEdges(e)
       pendingFit.current = true
       showToastMsg(`Rendered ${n.length} nodes · ${e.length} edges`)
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.3 }, zIndex: 9999 })
+      import('canvas-confetti').then(m => m.default({ particleCount: 120, spread: 80, origin: { y: 0.3 }, zIndex: 9999 }))
     } catch {
       showToastMsg('Could not parse diagram')
     }
@@ -559,11 +445,26 @@ export default function App() {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('id')
     if (!id) return
+    setLoadingId(true)
     fetch(`/api/system-designs/${id}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(d => openDiagram({ id: d.id, title: d.title, data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] }))
-      .catch(() => showToastMsg('Could not load design'))
+      .then(d => {
+        openDiagram({ id: d.id, title: d.title, data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] })
+        setLoadingId(false)
+      })
+      .catch(() => {
+        setLoadError(true)
+        setLoadingId(false)
+      })
   }, [])
+
+  function backToGallery() {
+    setLoadError(false)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('id')
+    window.history.replaceState({}, '', url)
+    setView('index')
+  }
 
   const onPaste = useCallback((e) => {
     const active = document.activeElement
@@ -587,9 +488,47 @@ export default function App() {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const filtered = DIAGRAMS.filter(d =>
+  const filtered = diagrams.filter(d =>
     !search.trim() || d.title.toLowerCase().includes(search.toLowerCase())
   )
+
+  // ── ?id LOADING / ERROR STATES ──────────────────────────────────────────────
+  if (loadingId) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: '#f4f5f7',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+      }}>
+        <div style={{
+          width: 40, height: 40, border: '3px solid #e4e6e8',
+          borderTopColor: '#1c1e21', borderRadius: '50%',
+          animation: 'sd-spin 0.8s linear infinite', marginBottom: 16,
+        }} />
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#1c1e21' }}>Loading design...</div>
+        <style>{`@keyframes sd-spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: '#f4f5f7',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+      }}>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: '#e4e6e8', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#8a8d91" strokeWidth={1.5} strokeLinecap="round"><circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+        </div>
+        <p style={{ fontSize: 14, color: '#1c1e21', fontWeight: 600, margin: 0 }}>Design not found</p>
+        <p style={{ fontSize: 13, color: '#8a8d91', marginTop: 6, marginBottom: 20 }}>It may have been deleted or the link is invalid</p>
+        <button onClick={backToGallery} style={{ padding: '10px 20px', background: '#1c1e21', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}>
+          Back to gallery
+        </button>
+      </div>
+    )
+  }
 
   // ── INDEX VIEW ──────────────────────────────────────────────────────────────
   if (view === 'index') {
@@ -646,11 +585,13 @@ export default function App() {
                     onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                     <span style={{ fontSize: 14 }}>📋</span> Import formats
                   </button>
-                  <button onClick={() => { setShowAIPrompt(true); setShowMenu(false); }}
-                    style={{ width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#1c1e21', fontFamily: 'inherit', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                    <span style={{ fontSize: 14 }}>✦</span> Generate with AI
-                  </button>
+                  {import.meta.env.DEV && (
+                    <button onClick={() => { setShowAIPrompt(true); setShowMenu(false); }}
+                      style={{ width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#1c1e21', fontFamily: 'inherit', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                      <span style={{ fontSize: 14 }}>✦</span> Generate with AI
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -680,7 +621,9 @@ export default function App() {
                   tags={d.tags}
                   onOpen={() => openDiagram(d)}
                   onViewCode={() => setCodeDiagram(d)}
-                  onDelete={() => showToastMsg('Delete not available in demo')}
+                  onDelete={import.meta.env.DEV ? () => {
+                    fetch(`/api/system-designs/${d.id}`, { method: 'DELETE' }).then(() => loadDiagrams())
+                  } : undefined}
                 />
               ))}
             </div>
@@ -688,11 +631,13 @@ export default function App() {
         </main>
 
         {/* ── FAB ── */}
-        <button onClick={() => setShowAIPrompt(true)} title="Generate with AI"
-          style={{ position: 'fixed', bottom: 32, right: 32, width: 52, height: 52, borderRadius: '50%', background: '#1c1e21', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'none', cursor: 'pointer', fontSize: 24, color: '#fff', transition: 'transform 0.15s, box-shadow 0.15s', zIndex: 5 }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(0,0,0,0.4)' }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)' }}
-        >✦</button>
+        {import.meta.env.DEV && (
+          <button onClick={() => setShowAIPrompt(true)} title="Generate with AI"
+            style={{ position: 'fixed', bottom: 32, right: 32, width: 52, height: 52, borderRadius: '50%', background: '#1c1e21', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'none', cursor: 'pointer', fontSize: 24, color: '#fff', transition: 'transform 0.15s, box-shadow 0.15s', zIndex: 5 }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(0,0,0,0.4)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)' }}
+          >✦</button>
+        )}
 
         {/* ── AI Prompt Modal ── */}
         {aiThinking && <AIThinkingOverlay />}
@@ -729,36 +674,12 @@ export default function App() {
         )}
 
         {/* ── Import Formats Modal ── */}
-        {showDocs && (
-          <div onClick={() => setShowDocs(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(6px)' }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: 16, padding: '28px 32px', width: 560, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.12)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', margin: 0 }}>Import Formats</h2>
-                <button onClick={() => setShowDocs(false)} style={{ background: 'none', border: 'none', color: '#8a8d91', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
-              </div>
-              <p style={{ fontSize: 12, color: '#65676b', margin: '0 0 20px', lineHeight: 1.6 }}>Two ways to create a system design diagram. Paste Mermaid code anywhere to auto-render.</p>
-              {[
-                { label: '1. Paste Mermaid (Cmd+V)', tag: 'Auto-detect', tagColor: '#16a34a', code: `graph LR\n  user[User] -->|Trigger event| apigw[API Gateway]\n  apigw -->|Invoke| lambda[Lambda]\n  lambda -->|Store token| dynamo[DynamoDB]\n  lambda -->|Start execution| sfn[Step Functions]` },
-                { label: '2. Edit diagram.json', tag: 'Manual', tagColor: '#6366f1', code: `// src/data/diagram.json\n{\n  "nodes": [\n    { "id": "lambda", "position": { "x": 480, "y": 210 } },\n    { "id": "dynamo", "position": { "x": 700, "y": 330 } }\n  ],\n  "edges": [\n    { "id": "e1", "source": "lambda", "target": "dynamo",\n      "label": "Store token", "color": "#dc2626" }\n  ]\n}` },
-                { label: 'Supported Services', tag: `${Object.keys(SERVICES).length} services`, tagColor: '#0ea5e9', code: Object.entries(SERVICES).filter(([,v]) => v.icon).map(([k, v]) => `${k.padEnd(14)} → ${v.label} (${v.sub})`).join('\n') },
-              ].map(({ label, tag, tagColor, code }) => (
-                <div key={label} style={{ marginBottom: 20 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1e21' }}>{label}</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: tagColor, background: `${tagColor}14`, borderRadius: 4, padding: '2px 7px' }}>{tag}</span>
-                  </div>
-                  <div style={{ position: 'relative' }}>
-                    <pre style={{ margin: 0, padding: '12px 14px', background: '#f4f5f7', borderRadius: 8, border: '1px solid #e4e6e8', fontSize: 11, color: '#1c1e21', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre' }}>{code}</pre>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(code); setCopiedLabel(label); setTimeout(() => setCopiedLabel(null), 2000); }}
-                      style={{ position: 'absolute', top: 8, right: 8, background: copiedLabel === label ? '#22c55e' : '#ffffff', border: '1px solid #e4e6e8', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: copiedLabel === label ? '#ffffff' : '#65676b', cursor: 'pointer', transition: 'all 0.15s' }}
-                    >{copiedLabel === label ? 'Copied!' : 'Copy'}</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <ImportFormatsModal
+          open={showDocs}
+          onClose={() => setShowDocs(false)}
+          copiedLabel={copiedLabel}
+          onCopy={(label, code) => { navigator.clipboard.writeText(code); setCopiedLabel(label); setTimeout(() => setCopiedLabel(null), 2000); }}
+        />
 
         {/* ── Code slide-in panel ── */}
         {codeDiagram && (
@@ -1091,36 +1012,12 @@ export default function App() {
       </div>
 
       {/* Import Formats modal (shared) */}
-      {showDocs && (
-        <div onClick={() => setShowDocs(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(6px)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: 16, padding: '28px 32px', width: 560, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.12)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', margin: 0 }}>Import Formats</h2>
-              <button onClick={() => setShowDocs(false)} style={{ background: 'none', border: 'none', color: '#8a8d91', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
-            </div>
-            <p style={{ fontSize: 12, color: '#65676b', margin: '0 0 20px', lineHeight: 1.6 }}>Two ways to create a system design diagram. Paste Mermaid code anywhere to auto-render.</p>
-            {[
-              { label: '1. Paste Mermaid (Cmd+V)', tag: 'Auto-detect', tagColor: '#16a34a', code: `graph LR\n  user[User] -->|Trigger event| apigw[API Gateway]\n  apigw -->|Invoke| lambda[Lambda]\n  lambda -->|Store token| dynamo[DynamoDB]\n  lambda -->|Start execution| sfn[Step Functions]` },
-              { label: '2. Edit diagram.json', tag: 'Manual', tagColor: '#6366f1', code: `// src/data/diagram.json\n{\n  "nodes": [\n    { "id": "lambda", "position": { "x": 480, "y": 210 } },\n    { "id": "dynamo", "position": { "x": 700, "y": 330 } }\n  ],\n  "edges": [\n    { "id": "e1", "source": "lambda", "target": "dynamo",\n      "label": "Store token", "color": "#dc2626" }\n  ]\n}` },
-              { label: 'Supported Services', tag: `${Object.keys(SERVICES).length} services`, tagColor: '#0ea5e9', code: Object.entries(SERVICES).filter(([,v]) => v.icon).map(([k, v]) => `${k.padEnd(14)} → ${v.label} (${v.sub})`).join('\n') },
-            ].map(({ label, tag, tagColor, code }) => (
-              <div key={label} style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1e21' }}>{label}</span>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: tagColor, background: `${tagColor}14`, borderRadius: 4, padding: '2px 7px' }}>{tag}</span>
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <pre style={{ margin: 0, padding: '12px 14px', background: '#f4f5f7', borderRadius: 8, border: '1px solid #e4e6e8', fontSize: 11, color: '#1c1e21', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre' }}>{code}</pre>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(code); setCopiedLabel(label); setTimeout(() => setCopiedLabel(null), 2000); }}
-                    style={{ position: 'absolute', top: 8, right: 8, background: copiedLabel === label ? '#22c55e' : '#ffffff', border: '1px solid #e4e6e8', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: copiedLabel === label ? '#ffffff' : '#65676b', cursor: 'pointer', transition: 'all 0.15s' }}
-                  >{copiedLabel === label ? 'Copied!' : 'Copy'}</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <ImportFormatsModal
+        open={showDocs}
+        onClose={() => setShowDocs(false)}
+        copiedLabel={copiedLabel}
+        onCopy={(label, code) => { navigator.clipboard.writeText(code); setCopiedLabel(label); setTimeout(() => setCopiedLabel(null), 2000); }}
+      />
 
       <style>{`
         @keyframes sd-slide-left {

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { isLocal } from "../../lib/is-local.js";
 
-const req = (host) => ({ headers: { host } });
+// isLocal is based on the peer socket address, NOT the Host header (spoofable).
+const req = (ip) => ({ socket: { remoteAddress: ip } });
 
 describe("isLocal", () => {
   const orig = { NODE_ENV: process.env.NODE_ENV, LOCAL_DEV: process.env.LOCAL_DEV };
@@ -14,20 +15,27 @@ describe("isLocal", () => {
     process.env.LOCAL_DEV = orig.LOCAL_DEV;
   });
 
-  it("is true for localhost in dev", () => {
-    expect(isLocal(req("localhost:5173"))).toBe(true);
+  it("is true for loopback / LAN peers in dev", () => {
     expect(isLocal(req("127.0.0.1"))).toBe(true);
-    expect(isLocal(req("192.168.1.20:4321"))).toBe(true);
+    expect(isLocal(req("::1"))).toBe(true);
+    expect(isLocal(req("::ffff:127.0.0.1"))).toBe(true);
+    expect(isLocal(req("192.168.1.20"))).toBe(true);
+    expect(isLocal(req("10.0.0.5"))).toBe(true);
   });
 
-  it("is false for an external host", () => {
-    expect(isLocal(req("system-design-bheng.vercel.app"))).toBe(false);
+  it("is false for a public peer address", () => {
+    expect(isLocal(req("203.0.113.7"))).toBe(false);
+    expect(isLocal(req(undefined))).toBe(false);
   });
 
-  it("is GATED OFF in production even on localhost (unless LOCAL_DEV=true)", () => {
+  it("does NOT trust the Host header (spoofable)", () => {
+    expect(isLocal({ headers: { host: "localhost" }, socket: { remoteAddress: "203.0.113.7" } })).toBe(false);
+  });
+
+  it("is GATED OFF in production even for a loopback peer (unless LOCAL_DEV=true)", () => {
     process.env.NODE_ENV = "production";
-    expect(isLocal(req("localhost:4321"))).toBe(false);
+    expect(isLocal(req("127.0.0.1"))).toBe(false);
     process.env.LOCAL_DEV = "true";
-    expect(isLocal(req("localhost:4321"))).toBe(true);
+    expect(isLocal(req("127.0.0.1"))).toBe(true);
   });
 });
