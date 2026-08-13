@@ -95,7 +95,8 @@ curl -X POST https://system-design-bheng.vercel.app/api/ai/system-designs \
 
 | Route | Access | Notes |
 |-------|--------|-------|
-| `POST /api/ai/generate` | Owner/local **only** | Prompt -> Claude. The Bearer key is **rejected** (`authorizeOwner(req,{allowBearer:false})`) so public callers can never spend Anthropic credits. |
+| `POST /api/ai/generate` | Owner **only** | Prompt -> Claude. Requires the owner's Google sign-in session (or local dev). The Bearer key is **rejected** (`authorizeOwner(req,{allowBearer:false})`) so public callers can never spend Anthropic credits. |
+| `GET /api/auth/login` / `callback` / `me`, `POST /api/auth/logout` | Public | Google OAuth (owner-only). Only `OWNER_EMAIL` gets a session; the session gates AI generation in the deployed app. |
 | `GET /api/system-designs` | Public read | The owner's saved designs, newest first (max 60) - the gallery feed. |
 | `GET /api/system-designs/:id` | Public read | Returns a saved design's JSON (what the returned URL renders). |
 | `DELETE /api/system-designs/:id` | Bearer-gated | Removes an artifact. |
@@ -175,6 +176,9 @@ npm run test:e2e # Playwright e2e tests (API + a browser render check)
 | `OWNER_USER_ID` | UUID that owns API-created artifacts. |
 | `SYSTEM_DESIGNS_APP_URL` | Base URL used to build the returned artifact URL. |
 | `ANTHROPIC_API_KEY` | Admin-only, used by `POST /api/ai/generate`. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 web client for owner sign-in. |
+| `AUTH_SECRET` | Signs the owner session cookie (`openssl rand -hex 32`). |
+| `OWNER_EMAIL` | The single Google account allowed to sign in and use AI generation. |
 | `LOCAL_DEV` | Dev-only auth bypass. Never set in production. |
 
 ## License

@@ -13,6 +13,10 @@ import listSystemDesigns from "./lib/handlers/list-system-designs.js";
 import generate from "./lib/handlers/generate.js";
 import health from "./lib/handlers/health.js";
 import systemDesignById from "./lib/handlers/system-design-by-id.js";
+import authLogin from "./lib/handlers/auth-login.js";
+import authCallback from "./lib/handlers/auth-callback.js";
+import authMe from "./lib/handlers/auth-me.js";
+import authLogout from "./lib/handlers/auth-logout.js";
 import { withErrors } from "./lib/wrap.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,6 +39,10 @@ app.use((_req, res, next) => {
   next();
 });
 
+app.get("/api/auth/login", withErrors(authLogin));
+app.get("/api/auth/callback", withErrors(authCallback));
+app.get("/api/auth/me", withErrors(authMe));
+app.post("/api/auth/logout", withErrors(authLogout));
 app.post("/api/ai/system-designs", withErrors(createSystemDesign));
 app.post("/api/ai/generate", withErrors(generate));
 app.get("/api/health", withErrors(health));
