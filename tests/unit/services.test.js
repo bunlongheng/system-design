@@ -1,0 +1,44 @@
+import { describe, it, expect } from "vitest";
+import { SERVICES, findService, tagColor } from "../../src/services.js";
+
+describe("findService", () => {
+  it("resolves a known service id to its icon config", () => {
+    const svc = findService({ id: "lambda" });
+    expect(svc.label).toBe("Lambda");
+    expect(svc.icon).toContain("lambda");
+  });
+
+  it("falls back to an emoji service (no icon) by id", () => {
+    const svc = findService({ id: "user" });
+    expect(svc.label).toBe("User");
+    expect(svc.emoji).toBeTruthy();
+  });
+
+  it("matches by label when the id is unknown", () => {
+    const svc = findService({ id: "zzz", label: "DynamoDB" });
+    expect(svc.icon).toContain("dynamodb");
+  });
+
+  it("returns an empty object for a fully unknown node", () => {
+    expect(findService({ id: "zzzzz", label: "zzzzz" })).toEqual({});
+  });
+});
+
+describe("tagColor", () => {
+  it("is deterministic for a given tag", () => {
+    expect(tagColor("API")).toEqual(tagColor("API"));
+  });
+  it("returns a palette entry with hex colors", () => {
+    const c = tagColor("AWS");
+    expect(c.bg).toMatch(/^#[0-9a-fA-F]{6}$/);
+    expect(c.text).toMatch(/^#[0-9a-fA-F]{6}$/);
+  });
+});
+
+describe("SERVICES catalog", () => {
+  it("has the core AWS services with icons", () => {
+    for (const key of ["lambda", "dynamo", "s3", "cloudfront", "apigw"]) {
+      expect(SERVICES[key]).toBeTruthy();
+    }
+  });
+});

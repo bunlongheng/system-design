@@ -26,4 +26,20 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Server-side + config + tests run under Node, not the browser.
+    files: [
+      'lib/**/*.js',
+      'api/**/*.js',
+      'db/**/*.mjs',
+      'serve.mjs',
+      'vite.config.js',
+      'vitest.config.js',
+      'playwright.config.js',
+      'tests/**/*.js',
+    ],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
 ])

@@ -1,0 +1,44 @@
+import { test, expect, request } from "@playwright/test";
+
+// Browser e2e: prove the artifact URL actually RENDERS in the SPA, not just that
+// the API returns JSON. Create a design via the public API, open the returned
+// /?id= URL in a real browser, and assert the React Flow canvas paints its nodes.
+const SECRET = process.env.SYSTEM_DESIGNS_API_SECRET || "e2e-secret";
+
+const DESIGN = {
+  title: "E2E Render Check",
+  type: "system-design",
+  nodes: [
+    { id: "user", position: { x: 40, y: 200 } },
+    { id: "cloudfront", position: { x: 260, y: 200 } },
+    { id: "lambda", position: { x: 480, y: 200 } },
+    { id: "dynamo", position: { x: 700, y: 200 } },
+  ],
+  edges: [
+    { id: "e1", source: "user", target: "cloudfront", label: "HTTPS" },
+    { id: "e2", source: "cloudfront", target: "lambda", label: "invoke" },
+    { id: "e3", source: "lambda", target: "dynamo", label: "rw" },
+  ],
+};
+
+test("the /?id= URL renders the design in the browser", async ({ page, baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: DESIGN,
+  });
+  expect(create.status()).toBe(201);
+  const { url } = await create.json();
+  const id = url.split("/?id=")[1];
+
+  try {
+    await page.goto(`/?id=${id}`);
+    // React Flow paints .react-flow__node once the design loads.
+    await page.waitForSelector(".react-flow__node", { timeout: 15000 });
+    const nodeCount = await page.locator(".react-flow__node").count();
+    expect(nodeCount).toBe(DESIGN.nodes.length);
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { Authorization: `Bearer ${SECRET}` } });
+    await api.dispose();
+  }
+});
