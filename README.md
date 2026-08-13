@@ -1,4 +1,4 @@
-# System Design - Architecture Diagram Tool
+<div align="center">
 
 Interactive AWS/GCP system design diagram tool with React Flow, dagre auto-layout, and an AI-callable artifact API for programmatic diagram creation.
 
@@ -9,7 +9,7 @@ Interactive AWS/GCP system design diagram tool with React Flow, dagre auto-layou
 
 A Vite + React single-page app that renders interactive AWS and GCP system design diagrams using React Flow, with dagre handling automatic graph layout. Paste a Mermaid diagram to render it, or drag components onto the canvas by hand. Beyond the SPA, the app exposes a small render-only HTTP API so diagrams can be created programmatically and shared as a link - backed by a shared PostgreSQL database and deployed as Vercel serverless functions.
 
-## Tech Stack
+Interactive AWS / distributed-system architecture diagrams - paste a Mermaid flowchart, watch it auto-layout on a React Flow canvas with real service icons.
 
 | Layer | Technology |
 |-------|-----------|
@@ -97,7 +97,7 @@ curl -X POST https://system-design-bheng.vercel.app/api/ai/system-designs \
 | `DELETE /api/system-designs/:id` | Bearer-gated | Removes an artifact. |
 | `GET /api/health` | Public | `200`/`503` liveness for the prod monitor (API secret + owner + DB). |
 
-## Project Structure
+## How it works
 
 ```
 system-design/
@@ -172,7 +172,7 @@ npm test         # Vitest unit tests
 npm run test:e2e # Playwright e2e tests
 ```
 
-## Environment Variables
+Paste any `graph LR` or `graph TD` Mermaid text into the page to render it - no build step or config required.
 
 | Variable | Description |
 |----------|-------------|
@@ -187,6 +187,4 @@ npm run test:e2e # Playwright e2e tests
 
 MIT - see [LICENSE](./LICENSE).
 
----
-
-Built by [Bunlong Heng](https://www.bunlongheng.com) | [GitHub](https://github.com/bunlongheng/system-design)
+[MIT](LICENSE) (c) Bunlong Heng
