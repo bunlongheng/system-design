@@ -1,15 +1,19 @@
 <div align="center">
 
+# System Design
+
 Interactive AWS/GCP system design diagram tool with React Flow, dagre auto-layout, and an AI-callable artifact API for programmatic diagram creation.
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Made with React](https://img.shields.io/badge/made%20with-React-61DAFB.svg)
 
+</div>
+
 ## What it is
 
-A Vite + React single-page app that renders interactive AWS and GCP system design diagrams using React Flow, with dagre handling automatic graph layout. Paste a Mermaid diagram to render it, or drag components onto the canvas by hand. Beyond the SPA, the app exposes a small render-only HTTP API so diagrams can be created programmatically and shared as a link - backed by a shared PostgreSQL database and deployed as Vercel serverless functions.
+A Vite + React single-page app that renders interactive AWS and GCP system design diagrams using React Flow, with dagre handling automatic graph layout. Paste a Mermaid flowchart to render it, or drag components onto the canvas by hand. Beyond the SPA, the app exposes a small render-only HTTP API so diagrams can be created programmatically and shared as a link - backed by a shared PostgreSQL database and deployed as Vercel serverless functions.
 
-Interactive AWS / distributed-system architecture diagrams - paste a Mermaid flowchart, watch it auto-layout on a React Flow canvas with real service icons.
+## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -47,10 +51,10 @@ the same lib/handlers/* on the same routes, listening on :4321.
 ## Features
 
 - Interactive AWS and GCP system-architecture diagrams
-- Paste-to-render: parse a Mermaid diagram straight into the canvas
+- Paste-to-render: parse a Mermaid `graph LR`/`graph TD` diagram straight into the canvas
 - Auto-layout via dagre
-- Drag-and-drop component placement
 - Library of AWS/GCP service icons (compute, storage, messaging, security, CI/CD, observability)
+- A gallery that lists saved designs, with deep-linkable `/?id=` share URLs
 - AI-callable artifact API for programmatic diagram creation
 
 ## AI-callable artifact API
@@ -97,48 +101,38 @@ curl -X POST https://system-design-bheng.vercel.app/api/ai/system-designs \
 | `DELETE /api/system-designs/:id` | Bearer-gated | Removes an artifact. |
 | `GET /api/health` | Public | `200`/`503` liveness for the prod monitor (API secret + owner + DB). |
 
-## How it works
+## Project Structure
 
 ```
 system-design/
   src/
-    App.jsx           # Main app - gallery + detail canvas, diagram rendering
+    App.jsx            # Main app - gallery + detail canvas, diagram rendering
     services.js        # AWS/GCP service icon catalog + lookup helpers
-    components/         # Extracted UI (ImportFormatsModal, ...)
+    components/        # Extracted UI (ImportFormatsModal, ...)
     main.jsx           # React entry point
     parseMermaid.js    # Mermaid -> React Flow node/edge parser
-    index.css           # Global styles
-    data/
-      diagram.json      # Default/sample diagram data
-  api/                  # Vercel serverless functions (thin wrappers)
+    index.css          # Global styles
+    data/diagram.json  # Default/sample diagram data
+  api/                 # Vercel serverless functions (thin wrappers)
     health.js
-    ai/
-      system-designs.js
-      generate.js
-    system-designs/
-      [id].js
+    ai/system-designs.js
+    ai/generate.js
+    system-designs.js  # GET list
+    system-designs/[id].js
   lib/
-    db.js               # PostgreSQL client (pg)
-    auth-owner.js        # Bearer + owner auth helpers
-    is-local.js          # Local/LAN detection for dev bypass
-    env.js               # Required-env validation (fails prod build if missing)
-    slugs.js             # Unique slug generation
-    wrap.js               # Error-wrapping middleware
-    handlers/             # Shared handler logic (imported by api/ and serve.mjs)
-      create-system-design.js
-      generate.js
-      health.js
-      system-design-by-id.js
+    db.js              # PostgreSQL client (pg)
+    auth-owner.js      # Bearer + owner auth helpers
+    is-local.js        # Local/LAN detection for the dev bypass
+    env.js             # Required-env validation (fails the prod build if missing)
+    slugs.js           # Unique slug generation
+    wrap.js            # Error-wrapping middleware
+    handlers/          # Shared handler logic (imported by api/ and serve.mjs)
   db/
-    migrate.mjs           # Migration runner
-    migrations/
-      20260812000000_system_designs.sql
-  serve.mjs               # Express server - local/CI prod-like API + static SPA
-  tests/
-    unit/                 # Vitest unit tests
-    e2e/                  # Playwright e2e tests
-  .github/
-    workflows/             # CI + prod-monitor workflows
+    migrate.mjs        # Migration runner
+    migrations/        # SQL migrations
+  serve.mjs            # Express server - local/CI prod-like API + static SPA
+  tests/               # unit/ (Vitest) + e2e/ (Playwright)
+  .github/workflows/   # CI + prod-monitor
 ```
 
 ## Getting Started
@@ -169,10 +163,10 @@ Tests:
 
 ```bash
 npm test         # Vitest unit tests
-npm run test:e2e # Playwright e2e tests
+npm run test:e2e # Playwright e2e tests (API + a browser render check)
 ```
 
-Paste any `graph LR` or `graph TD` Mermaid text into the page to render it - no build step or config required.
+## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
@@ -185,6 +179,8 @@ Paste any `graph LR` or `graph TD` Mermaid text into the page to render it - no 
 
 ## License
 
-MIT - see [LICENSE](./LICENSE).
+MIT (c) Bunlong Heng - see [LICENSE](./LICENSE).
 
-[MIT](LICENSE) (c) Bunlong Heng
+---
+
+Built by [Bunlong Heng](https://www.bunlongheng.com) | [GitHub](https://github.com/bunlongheng/system-design)
