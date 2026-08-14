@@ -114,9 +114,10 @@ export default function App() {
   }
 
   function copyFormat(label, code) {
-    navigator.clipboard.writeText(code)
-    setCopiedLabel(label)
-    setTimeout(() => setCopiedLabel(null), 2000)
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedLabel(label)
+      setTimeout(() => setCopiedLabel(null), 2000)
+    }).catch(() => showToastMsg('Copy failed'))
   }
 
   async function submitAI() {
@@ -209,7 +210,8 @@ export default function App() {
     setView('index')
   }
 
-  const onPaste = useCallback(async (e) => {
+  const onPasteRef = useRef(null)
+  onPasteRef.current = async (e) => {
     const active = document.activeElement
     if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') return
     const text = e.clipboardData?.getData('text') || ''
@@ -219,13 +221,13 @@ export default function App() {
       setView('detail')
       setActiveDiagram({ id: 'pasted', title: 'Pasted Diagram', data: parsed, updatedAt: new Date().toISOString() })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }
 
   useEffect(() => {
-    window.addEventListener('paste', onPaste)
-    return () => window.removeEventListener('paste', onPaste)
-  }, [onPaste])
+    const handlePaste = (e) => onPasteRef.current?.(e)
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [])
 
   useEffect(() => {
     const h = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false) }
@@ -289,7 +291,7 @@ export default function App() {
   if (view === 'index') {
     return (
       <IndexView
-        toast={toast}
+        toast={toast} showToastMsg={showToastMsg}
         search={search} setSearch={setSearch}
         user={user} canAI={canAI}
         showMenu={showMenu} setShowMenu={setShowMenu} menuRef={menuRef}
@@ -320,11 +322,11 @@ export default function App() {
   function exportPng() {
     const el = document.querySelector('.react-flow')
     if (!el) return
-    import('html-to-image').then(({ toPng }) => {
+    return import('html-to-image').then(({ toPng }) => (
       toPng(el, { backgroundColor: '#e8ecf0', pixelRatio: 2 }).then(url => {
         const a = document.createElement('a'); a.href = url; a.download = exportFilename('png'); a.click()
       })
-    }).catch(() => {
+    )).catch(() => {
       // fallback: screenshot via canvas not available, just notify
       showToastMsg('PNG export requires html-to-image package')
     })
@@ -385,7 +387,7 @@ export default function App() {
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────────
   return (
     <DetailView
-      toast={toast}
+      toast={toast} showToastMsg={showToastMsg}
       setView={setView}
       showDetailCode={showDetailCode} setShowDetailCode={setShowDetailCode}
       rfInstance={rfInstance} flashZoomHud={flashZoomHud} zoomHudRef={zoomHudRef}

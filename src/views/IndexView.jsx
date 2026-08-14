@@ -1,14 +1,16 @@
+import { useEffect, useRef } from 'react'
 import { Toast } from '../components/Toast'
 import { DiagramCard } from '../components/DiagramCard'
 import { AIThinkingOverlay } from '../components/AIThinkingOverlay'
 import ImportFormatsModal from '../components/ImportFormatsModal'
 
 const GITHUB_AVATAR = 'https://avatars.githubusercontent.com/u/11523064?v=4'
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
 
 // ─── Index (gallery) view ───────────────────────────────────────────────────
 
 export function IndexView({
-  toast,
+  toast, showToastMsg,
   search, setSearch,
   user, canAI,
   showMenu, setShowMenu, menuRef,
@@ -21,6 +23,33 @@ export function IndexView({
   aiPrompt, setAiPrompt, aiThinking, aiInputRef, submitAI,
   codeDiagram, setCodeDiagram, codeCopied, setCodeCopied,
 }) {
+  const aiDialogRef = useRef(null)
+  const aiPreviousFocusRef = useRef(null)
+
+  function openAIPrompt() {
+    aiPreviousFocusRef.current = document.activeElement
+    setShowAIPrompt(true)
+  }
+
+  // Restore focus to whatever triggered the AI prompt dialog once it closes.
+  // (Focus is moved into the dialog's textarea by the existing effect in App.jsx.)
+  useEffect(() => {
+    if (!showAIPrompt) aiPreviousFocusRef.current?.focus?.()
+  }, [showAIPrompt])
+
+  function handleAIDialogKeyDown(e) {
+    if (e.key !== 'Tab') return
+    const focusables = aiDialogRef.current?.querySelectorAll(FOCUSABLE_SELECTOR)
+    if (!focusables || !focusables.length) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus()
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f4f5f7', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       <Toast message={toast.message} visible={toast.visible} />
@@ -74,7 +103,7 @@ export function IndexView({
                   <span style={{ fontSize: 14 }}>📋</span> Import formats
                 </button>
                 {canAI && (
-                  <button onClick={() => { setShowAIPrompt(true); setShowMenu(false); }}
+                  <button onClick={() => { openAIPrompt(); setShowMenu(false); }}
                     style={{ width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#1c1e21', fontFamily: 'inherit', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                     <span style={{ fontSize: 14 }}>✦</span> Generate with AI
@@ -132,7 +161,7 @@ export function IndexView({
 
       {/* ── FAB ── */}
       {canAI && (
-        <button onClick={() => setShowAIPrompt(true)} title="Generate with AI"
+        <button onClick={openAIPrompt} title="Generate with AI"
           style={{ position: 'fixed', bottom: 32, right: 32, width: 52, height: 52, borderRadius: '50%', background: '#1c1e21', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'none', cursor: 'pointer', fontSize: 24, color: '#fff', transition: 'transform 0.15s, box-shadow 0.15s', zIndex: 5 }}
           onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(0,0,0,0.4)' }}
           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)' }}
@@ -143,7 +172,7 @@ export function IndexView({
       {aiThinking && <AIThinkingOverlay />}
       {showAIPrompt && !aiThinking && (
         <div onClick={() => setShowAIPrompt(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
-          <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: '#ffffff', borderRadius: 20, padding: '32px 32px 28px', width: 520, boxShadow: '0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)' }}>
+          <div onClick={e => e.stopPropagation()} onKeyDown={handleAIDialogKeyDown} ref={aiDialogRef} role="dialog" aria-modal="true" style={{ background: '#ffffff', borderRadius: 20, padding: '32px 32px 28px', width: 520, boxShadow: '0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: '#1c1e21', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -196,10 +225,14 @@ export function IndexView({
               </svg>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1e21', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{codeDiagram.title}</span>
               <button
-                onClick={() => { navigator.clipboard.writeText(JSON.stringify(codeDiagram.data, null, 2)); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000); }}
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(codeDiagram.data, null, 2)).then(() => {
+                    setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000)
+                  }).catch(() => showToastMsg('Copy failed'))
+                }}
                 style={{ background: codeCopied ? '#22c55e' : '#f4f5f7', border: '1px solid #e4e6e8', borderRadius: 6, padding: '4px 12px', fontSize: 11, fontWeight: 600, color: codeCopied ? '#fff' : '#65676b', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
               >{codeCopied ? 'Copied!' : 'Copy'}</button>
-              <button onClick={() => { setCodeDiagram(null); setCodeCopied(false); }} style={{ background: 'none', border: 'none', color: '#8a8d91', cursor: 'pointer', fontSize: 18, lineHeight: 1, flexShrink: 0 }}>✕</button>
+              <button onClick={() => { setCodeDiagram(null); setCodeCopied(false); }} aria-label="Close" style={{ background: 'none', border: 'none', color: '#8a8d91', cursor: 'pointer', fontSize: 18, lineHeight: 1, flexShrink: 0 }}>✕</button>
             </div>
             <div style={{ flex: 1, overflow: 'auto', padding: 0 }}>
               <pre style={{
