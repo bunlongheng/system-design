@@ -1,9 +1,11 @@
 import { test, expect, request } from "@playwright/test";
+import { signSession } from "../../lib/auth-session.js";
 
 // Browser e2e: prove the artifact URL actually RENDERS in the SPA, not just that
 // the API returns JSON. Create a design via the public API, open the returned
 // /?id= URL in a real browser, and assert the React Flow canvas paints its nodes.
 const SECRET = process.env.SYSTEM_DESIGNS_API_SECRET || "e2e-secret";
+const OWNER_COOKIE = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
 
 const DESIGN = {
   title: "E2E Render Check",
@@ -38,7 +40,7 @@ test("the /?id= URL renders the design in the browser", async ({ page, baseURL }
     const nodeCount = await page.locator(".react-flow__node").count();
     expect(nodeCount).toBe(DESIGN.nodes.length);
   } finally {
-    await api.delete(`/api/system-designs/${id}`, { headers: { Authorization: `Bearer ${SECRET}` } });
+    await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
     await api.dispose();
   }
 });

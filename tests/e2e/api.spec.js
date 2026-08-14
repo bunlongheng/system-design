@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { signSession } from "../../lib/auth-session.js";
 
 // End-to-end against a PRODUCTION build (npm run build && npm run start), the
 // same handlers Vercel runs. Proves the public contract + the auth policy.
 const SECRET = process.env.SYSTEM_DESIGNS_API_SECRET || "e2e-secret";
+const OWNER_COOKIE = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
 
 const VALID_BODY = {
   title: "E2E Uber System Design",
@@ -70,9 +72,9 @@ test("public round-trip: create -> 201 {url} -> GET renders -> DELETE", async ({
   expect(design.title).toBe(VALID_BODY.title);
   expect(design.nodes.length).toBe(VALID_BODY.nodes.length);
 
-  // Clean up the test artifact (Bearer-gated DELETE).
+  // Clean up the test artifact (owner-session-gated DELETE).
   const del = await request.delete(`/api/system-designs/${id}`, {
-    headers: { Authorization: `Bearer ${SECRET}` },
+    headers: { Cookie: OWNER_COOKIE },
   });
   expect(del.status()).toBe(200);
   expect((await del.json()).deleted).toBe(true);
