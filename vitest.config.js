@@ -11,9 +11,9 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text"],
       include: ["lib/**", "src/**"],
-      // Ratchet: set just below current (lines ~53%, branches ~75%) so coverage
+      // Ratchet: set just below current (lines ~59%, branches ~75%) so coverage
       // can only go up. Raise these as more of App.jsx/views gets covered.
-      thresholds: { lines: 45, statements: 45, branches: 65, functions: 28 },
+      thresholds: { lines: 55, statements: 55, branches: 65, functions: 28 },
     },
   },
 });
