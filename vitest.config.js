@@ -13,7 +13,7 @@ export default defineConfig({
       include: ["lib/**", "src/**"],
       // Ratchet: set just below current (lines ~59%, branches ~75%) so coverage
       // can only go up. Raise these as more of App.jsx/views gets covered.
-      thresholds: { lines: 55, statements: 55, branches: 65, functions: 28 },
+      thresholds: { lines: 60, statements: 60, branches: 65, functions: 35 },
     },
   },
 });

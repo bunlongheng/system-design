@@ -19,6 +19,7 @@ export function DetailView({
   nodes, edges,
   exportPng, exportCode, exportJson, copyLink, copiedLink, shareAction, copiedShare, copyCode, copiedCode,
   showDocs, setShowDocs, copiedLabel, onCopyFormat,
+  showToastMsg,
 }) {
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
@@ -31,6 +32,7 @@ export function DetailView({
       }}>
         {/* Back button */}
         <button onClick={() => { setView('index'); setShowDetailCode(false); }}
+          aria-label="Back to gallery"
           style={{
             width: 36, height: 36, borderRadius: 10, flexShrink: 0,
             border: '1px solid #e4e6e8', background: '#ffffff',
@@ -132,9 +134,10 @@ export function DetailView({
               <button
                 onClick={() => {
                   const code = JSON.stringify(activeDiagram?.data || diagramData, null, 2)
-                  navigator.clipboard.writeText(code)
-                  setDetailCodeCopied(true)
-                  setTimeout(() => setDetailCodeCopied(false), 2000)
+                  navigator.clipboard.writeText(code).then(() => {
+                    setDetailCodeCopied(true)
+                    setTimeout(() => setDetailCodeCopied(false), 2000)
+                  }).catch(() => showToastMsg('Copy failed'))
                 }}
                 style={{ background: detailCodeCopied ? '#22c55e' : '#f4f5f7', border: '1px solid #e4e6e8', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: detailCodeCopied ? '#fff' : '#65676b', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
               >{detailCodeCopied ? 'Copied!' : 'Copy'}</button>

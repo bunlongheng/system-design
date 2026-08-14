@@ -1,16 +1,46 @@
+import { useEffect, useRef } from 'react'
 import { SERVICES } from '../services'
+
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
 
 // ─── Import Formats Modal ──────────────────────────────────────────────────
 
 export default function ImportFormatsModal({ open, onClose, copiedLabel, onCopy }) {
+  const dialogRef = useRef(null)
+  const previousFocusRef = useRef(null)
+
+  // Move focus into the dialog when it opens, and restore it to whatever
+  // triggered the open once the dialog closes.
+  useEffect(() => {
+    if (open) {
+      previousFocusRef.current = document.activeElement
+      dialogRef.current?.querySelector(FOCUSABLE_SELECTOR)?.focus()
+    } else {
+      previousFocusRef.current?.focus?.()
+    }
+  }, [open])
+
+  function handleKeyDown(e) {
+    if (e.key !== 'Tab') return
+    const focusables = dialogRef.current?.querySelectorAll(FOCUSABLE_SELECTOR)
+    if (!focusables || !focusables.length) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus()
+    }
+  }
+
   if (!open) return null
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(6px)' }}>
-      <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: '#ffffff', borderRadius: 16, padding: '28px 32px', width: 560, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.12)' }}>
+      <div onClick={e => e.stopPropagation()} onKeyDown={handleKeyDown} ref={dialogRef} role="dialog" aria-modal="true" style={{ background: '#ffffff', borderRadius: 16, padding: '28px 32px', width: 560, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.12)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', margin: 0 }}>Import Formats</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8a8d91', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: '#8a8d91', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <p style={{ fontSize: 12, color: '#65676b', margin: '0 0 20px', lineHeight: 1.6 }}>Two ways to create a system design diagram. Paste Mermaid code anywhere to auto-render.</p>
         {[

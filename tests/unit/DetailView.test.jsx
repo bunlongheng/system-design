@@ -67,6 +67,7 @@ describe("DetailView", () => {
   it("renders without crashing and shows the back button", () => {
     setup();
     expect(document.querySelector("header")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /back to gallery/i })).toBeInTheDocument();
   });
 
   it("shows the Code and Share toolbar toggles", () => {
@@ -83,7 +84,7 @@ describe("DetailView", () => {
   it("goes back to the index view and hides the code panel when back is clicked", async () => {
     const { setView, setShowDetailCode } = setup();
     const user = userEvent.setup();
-    await user.click(screen.getAllByRole("button")[0]);
+    await user.click(screen.getByRole("button", { name: /back to gallery/i }));
     expect(setView).toHaveBeenCalledWith("index");
     expect(setShowDetailCode).toHaveBeenCalledWith(false);
   });
