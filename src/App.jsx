@@ -345,6 +345,8 @@ export default function App() {
   const [diagrams, setDiagrams] = useState(SEED)
   const [loadingId, setLoadingId] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [user, setUser] = useState(null)
+  const canAI = Boolean(user) || import.meta.env.DEV
   const rfInstance = useRef(null)
   const pendingFit = useRef(false)
   const menuRef = useRef(null)
@@ -371,6 +373,19 @@ export default function App() {
   }, [])
 
   useEffect(() => { loadDiagrams() }, [loadDiagrams])
+
+  // Owner sign-in state + one-time feedback from the OAuth redirect (?auth=).
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.authenticated) setUser(d) }).catch(() => {})
+    const p = new URLSearchParams(window.location.search).get('auth')
+    if (p === 'denied') showToastMsg('That Google account is not authorized')
+    else if (p === 'error') showToastMsg('Sign-in failed, try again')
+    if (p) { const u = new URL(window.location.href); u.searchParams.delete('auth'); window.history.replaceState({}, '', u) }
+  }, [])
+
+  function signOut() {
+    fetch('/api/auth/logout', { method: 'POST' }).then(() => { setUser(null); showToastMsg('Signed out') })
+  }
 
   async function submitAI() {
     if (!aiPrompt.trim() || aiThinking) return
@@ -579,8 +594,8 @@ export default function App() {
               {showMenu && (
                 <div style={{ position: 'absolute', top: 42, right: 0, width: 210, background: '#ffffff', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', border: '1px solid #e4e6e8', overflow: 'hidden', zIndex: 50 }}>
                   <div style={{ padding: '14px 16px 12px' }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1e21' }}>Bunlong Heng</div>
-                    <div style={{ fontSize: 11, color: '#8a8d91', marginTop: 3 }}>System Design Diagrams</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1e21' }}>{user ? 'Bunlong Heng' : 'System Design'}</div>
+                    <div style={{ fontSize: 11, color: '#8a8d91', marginTop: 3 }}>{user ? user.email : 'Not signed in'}</div>
                   </div>
                   <div style={{ height: 1, background: '#f0f1f3' }} />
                   <button onClick={() => { setShowDocs(true); setShowMenu(false); }}
@@ -588,12 +603,26 @@ export default function App() {
                     onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                     <span style={{ fontSize: 14 }}>📋</span> Import formats
                   </button>
-                  {import.meta.env.DEV && (
+                  {canAI && (
                     <button onClick={() => { setShowAIPrompt(true); setShowMenu(false); }}
                       style={{ width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#1c1e21', fontFamily: 'inherit', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                       <span style={{ fontSize: 14 }}>✦</span> Generate with AI
                     </button>
+                  )}
+                  <div style={{ height: 1, background: '#f0f1f3' }} />
+                  {user ? (
+                    <button onClick={() => { signOut(); setShowMenu(false); }}
+                      style={{ width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#dc2626', fontFamily: 'inherit', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                      <span style={{ fontSize: 14 }}>↪</span> Sign out
+                    </button>
+                  ) : (
+                    <a href="/api/auth/login"
+                      style={{ width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#1c1e21', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', boxSizing: 'border-box' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                      <span style={{ fontSize: 14 }}>🔑</span> Sign in with Google
+                    </a>
                   )}
                 </div>
               )}
@@ -624,7 +653,7 @@ export default function App() {
                   tags={d.tags}
                   onOpen={() => openDiagram(d)}
                   onViewCode={() => setCodeDiagram(d)}
-                  onDelete={import.meta.env.DEV ? () => {
+                  onDelete={canAI ? () => {
                     fetch(`/api/system-designs/${d.id}`, { method: 'DELETE' }).then(() => loadDiagrams())
                   } : undefined}
                 />
@@ -634,7 +663,7 @@ export default function App() {
         </main>
 
         {/* ── FAB ── */}
-        {import.meta.env.DEV && (
+        {canAI && (
           <button onClick={() => setShowAIPrompt(true)} title="Generate with AI"
             style={{ position: 'fixed', bottom: 32, right: 32, width: 52, height: 52, borderRadius: '50%', background: '#1c1e21', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'none', cursor: 'pointer', fontSize: 24, color: '#fff', transition: 'transform 0.15s, box-shadow 0.15s', zIndex: 5 }}
             onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(0,0,0,0.4)' }}
