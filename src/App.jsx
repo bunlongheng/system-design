@@ -1,64 +1,16 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react'
-import { ReactFlow, Background, Handle, Position } from '@xyflow/react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ReactFlow, Background } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import diagramData from './data/diagram.json'
-import { PALETTE, tagColor, findService } from './services'
+import { tagColor } from './services'
 import ImportFormatsModal from './components/ImportFormatsModal'
 import SignInScreen from './components/SignInScreen'
+import { nodeTypes } from './components/AwsNode'
+import { DiagramCard } from './components/DiagramCard'
+import { Toast } from './components/Toast'
+import { AIThinkingOverlay } from './components/AIThinkingOverlay'
 
 const GITHUB_AVATAR = 'https://avatars.githubusercontent.com/u/11523064?v=4'
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function relativeTime(d) {
-  const diff = Date.now() - new Date(d).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return 'Just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const day = Math.floor(h / 24)
-  if (day < 7) return `${day}d ago`
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-// ─── Custom Node ──────────────────────────────────────────────────────────────
-
-const AwsNode = memo(function AwsNode({ data }) {
-  const svc = findService(data)
-  const color = svc.color || '#6b7280'
-  const label = svc.label || data.label || data.id
-
-  return (
-    <div style={{
-      background: '#ffffff', border: `1.5px solid ${color}30`, borderRadius: 14,
-      padding: '14px 16px', minWidth: 130, display: 'flex', flexDirection: 'column',
-      alignItems: 'center', gap: 8, position: 'relative',
-      boxShadow: `0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)`,
-    }}>
-      <Handle type="target" position={Position.Left}   style={{ opacity: 0, pointerEvents: 'none' }} />
-      <Handle type="target" position={Position.Top}    style={{ opacity: 0, pointerEvents: 'none' }} />
-      <Handle type="source" position={Position.Right}  style={{ opacity: 0, pointerEvents: 'none' }} />
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: 'none' }} />
-      <div style={{
-        width: 52, height: 52, borderRadius: 12,
-        background: `${color}12`, border: `1px solid ${color}25`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 4,
-      }}>
-        {svc.icon
-          ? <img src={svc.icon} alt={label} width={32} height={32} style={{ objectFit: 'contain' }} />
-          : <span style={{ fontSize: svc.emoji ? 24 : 16, fontWeight: 700, color }}>{svc.emoji || label[0]?.toUpperCase()}</span>
-        }
-      </div>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', letterSpacing: '-0.1px', lineHeight: 1.3 }}>{label}</div>
-        {svc.sub && <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, fontWeight: 600 }}>{svc.sub}</div>}
-      </div>
-    </div>
-  )
-})
-
-const nodeTypes = { awsNode: AwsNode }
 
 // ─── Default data ─────────────────────────────────────────────────────────────
 
@@ -70,250 +22,6 @@ const defaultEdges = diagramData.edges.map(({ color, animated, ...e }) => ({
   labelBgStyle: { fill: '#ffffff', fillOpacity: 1 },
   labelBgPadding: [4, 8], labelBgBorderRadius: 6,
 }))
-
-// ─── Minimap for cards ────────────────────────────────────────────────────────
-
-function DiagramMinimap({ diagram }) {
-  const W = 224, H = 112
-  const nodeIds = diagram.nodes.map(n => n.id)
-  const n = nodeIds.length
-  if (!n) return <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', background: '#ffffff', borderRadius: 8 }} />
-
-  // Compute positions from diagram data
-  const xs = diagram.nodes.map(nd => nd.position.x)
-  const ys = diagram.nodes.map(nd => nd.position.y)
-  const minX = Math.min(...xs), maxX = Math.max(...xs)
-  const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1
-  const pad = 20
-
-  const positions = diagram.nodes.map(nd => ([
-    pad + ((nd.position.x - minX) / rangeX) * (W - pad * 2),
-    pad + ((nd.position.y - minY) / rangeY) * (H - pad * 2),
-  ]))
-
-  const posMap = {}
-  diagram.nodes.forEach((nd, i) => { posMap[nd.id] = positions[i] })
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', background: '#ffffff', borderRadius: 8 }}>
-      {diagram.edges.map((e, i) => {
-        const fp = posMap[e.source], tp = posMap[e.target]
-        if (!fp || !tp) return null
-        return <line key={`e${i}`} x1={fp[0]} y1={fp[1]} x2={tp[0]} y2={tp[1]} stroke="#d1d5db" strokeWidth={1.5} />
-      })}
-      {positions.map(([x, y], i) => (
-        <rect key={`n${i}`} x={x - 14} y={y - 8} width={28} height={16} rx={4} fill={PALETTE[i % PALETTE.length]} />
-      ))}
-    </svg>
-  )
-}
-
-// ─── Card ─────────────────────────────────────────────────────────────────────
-
-function DiagramCard({ diagram, title, updatedAt, tags, onOpen, onViewCode, onDelete }) {
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
-  const showActions = hovered || focused
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
-      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }}
-      onClick={onOpen}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
-      style={{
-        background: '#ffffff', borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
-        transition: 'box-shadow 0.15s, transform 0.15s',
-        border: hovered ? '2px solid #1c1e21' : '2px solid transparent',
-        boxShadow: hovered ? '0 8px 28px rgba(0,0,0,0.18), 0 0 0 3px rgba(28,30,33,0.08)' : '0 1px 4px rgba(0,0,0,0.05)',
-        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-        position: 'relative',
-      }}
-    >
-      {/* Header */}
-      <div style={{ padding: '13px 14px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1e21', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {title}
-        </span>
-        <span style={{ fontSize: 10, color: '#8a8d91', flexShrink: 0 }}>{relativeTime(updatedAt)}</span>
-      </div>
-
-      {/* Tags */}
-      {tags?.length > 0 && (
-        <div style={{ padding: '0 13px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {tags.map(t => { const s = tagColor(t); return (
-            <span key={t} style={{ fontSize: 11, fontWeight: 700, padding: '1px 4px', borderRadius: 20, background: s.bg, color: s.text, border: `1px solid ${s.border}`, letterSpacing: '0.02em', lineHeight: 1.4 }}>{t}</span>
-          ); })}
-        </div>
-      )}
-
-      {/* Minimap */}
-      <div style={{ padding: '0 12px 13px' }}>
-        <DiagramMinimap diagram={diagram} />
-      </div>
-
-      {/* Hover / focus actions */}
-      {showActions && (
-        <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-          <button onClick={onViewCode} title="View code"
-            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #e4e6e8', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#8a8d91" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-            </svg>
-          </button>
-          {onDelete && (
-            <button onClick={onDelete} title="Delete"
-              style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #e4e6e8', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-              </svg>
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Toast ────────────────────────────────────────────────────────────────────
-
-function Toast({ message, visible }) {
-  return (
-    <div role="status" aria-live="polite" style={{
-      position: 'fixed', top: 20, left: '50%',
-      transform: `translateX(-50%) translateY(${visible ? 0 : -60}px)`,
-      background: '#111827', color: '#fff',
-      padding: '10px 16px 10px 12px', borderRadius: 12,
-      fontSize: 13, fontWeight: 600, zIndex: 9999, pointerEvents: 'none',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-      transition: 'transform 0.3s ease, opacity 0.3s ease',
-      opacity: visible ? 1 : 0,
-      display: 'flex', alignItems: 'center', gap: 10,
-    }}>
-      <img src="/robot.svg" width={24} height={24} alt="" style={{ flexShrink: 0 }} />
-      {message}
-    </div>
-  )
-}
-
-// ─── AI Thinking Overlay (copied from diagrams app) ──────────────────────────
-
-const AI_TOKENS = [
-  'tokens','context','embedding','inference','neural','attention','transformer',
-  'gradient','weight','latent','vector','semantic','entropy','logit','softmax',
-  'decode','encode','tensor','backprop','synapse','neuron','pattern','classify',
-  'predict','generate','reason','analyze','parse','query','memory','chain',
-  'cluster','feature','kernel','dropout','sigmoid','relu','normalize','sample',
-  'prompt','stream','output','input','layer','epoch','batch','loss','node','graph',
-]
-const AI_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*<>/\\|{}[]'
-const PARTICLE_COLORS = [
-  '#f87171','#fb923c','#fbbf24','#34d399','#38bdf8','#818cf8','#e879f9',
-  '#f472b6','#a3e635','#2dd4bf','#60a5fa','#c084fc',
-]
-const LOADING_PHRASES = [
-  'Thinking...','Tokenizing...','Building graph...','Reasoning...','Encoding...',
-  'Mapping flow...','Inferring...','Generating...','Assembling...','Almost there...',
-]
-
-function pickToken() {
-  return Math.random() < 0.35
-    ? AI_TOKENS[Math.floor(Math.random() * AI_TOKENS.length)]
-    : AI_CHARS[Math.floor(Math.random() * AI_CHARS.length)]
-}
-
-function AIThinkingOverlay() {
-  const canvasRef = useRef(null)
-  const frameRef = useRef(0)
-  const [phrase, setPhrase] = useState(LOADING_PHRASES[0])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPhrase(LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)])
-    }, 1800)
-    return () => clearInterval(interval)
-  }, [])
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    const W = 600, H = 400
-    canvas.width = W * 2; canvas.height = H * 2
-    ctx.scale(2, 2)
-
-    const particles = Array.from({ length: 40 }, () => ({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 1.5,
-      vy: -Math.random() * 2 - 0.5,
-      text: pickToken(),
-      color: PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)],
-      size: 9 + Math.random() * 6,
-      opacity: 0.15 + Math.random() * 0.5,
-      life: Math.random() * 200,
-    }))
-
-    function animate() {
-      ctx.clearRect(0, 0, W, H)
-      for (const p of particles) {
-        p.x += p.vx
-        p.y += p.vy
-        p.life++
-        p.opacity *= 0.997
-        if (p.y < -20 || p.opacity < 0.05) {
-          p.x = Math.random() * W
-          p.y = H + 10
-          p.vy = -Math.random() * 2 - 0.5
-          p.vx = (Math.random() - 0.5) * 1.5
-          p.text = pickToken()
-          p.color = PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)]
-          p.opacity = 0.15 + Math.random() * 0.5
-          p.life = 0
-        }
-        ctx.globalAlpha = p.opacity
-        ctx.font = `${p.size}px "JetBrains Mono", "Fira Code", monospace`
-        ctx.fillStyle = p.color
-        ctx.fillText(p.text, p.x, p.y)
-      }
-      ctx.globalAlpha = 1
-      frameRef.current = requestAnimationFrame(animate)
-    }
-    animate()
-    return () => cancelAnimationFrame(frameRef.current)
-  }, [])
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, backdropFilter: 'blur(12px)',
-    }}>
-      <canvas ref={canvasRef} style={{ width: 600, height: 400, position: 'absolute', opacity: 0.6 }} />
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: 16, background: '#1c1e21',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 20px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        }}>
-          <div style={{
-            width: 24, height: 24, border: '3px solid rgba(255,255,255,0.2)',
-            borderTopColor: '#fff', borderRadius: '50%',
-            animation: 'sd-spin 0.8s linear infinite',
-          }} />
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 8 }}>{phrase}</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Claude is designing your architecture</div>
-      </div>
-      <style>{`@keyframes sd-spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  )
-}
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -940,7 +648,7 @@ export default function App() {
 
         {/* Code panel (left, slide-in) */}
         {showDetailCode && (
-          <div style={{
+          <div className="sd-code-panel" style={{
             width: 340, flexShrink: 0, background: '#ffffff', borderRight: '1px solid #e4e6e8',
             display: 'flex', flexDirection: 'column', animation: 'sd-slide-left 0.2s ease-out',
           }}>
@@ -996,7 +704,7 @@ export default function App() {
 
         {/* Share panel (right side) */}
         {showSharePanel && (
-          <div style={{
+          <div className="sd-share-panel" style={{
             width: 240, flexShrink: 0, background: '#f1f5f9', borderLeft: '1px solid #e2e8f0',
             display: 'flex', flexDirection: 'column', padding: '20px 16px',
             animation: 'sd-slide-right 0.2s ease-out',
@@ -1072,6 +780,16 @@ export default function App() {
         @keyframes sd-slide-right {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
+        }
+        /* On phones the fixed-width side panels would crush the canvas, so drop
+           them to full-width bottom sheets over the canvas instead. */
+        @media (max-width: 640px) {
+          .sd-code-panel, .sd-share-panel {
+            position: absolute !important; left: 0 !important; right: 0 !important;
+            bottom: 0 !important; top: auto !important; width: 100% !important;
+            max-height: 60vh; z-index: 20; border: none !important;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.18);
+          }
         }
       `}</style>
     </div>
