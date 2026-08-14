@@ -4,6 +4,7 @@ import '@xyflow/react/dist/style.css'
 import diagramData from './data/diagram.json'
 import { PALETTE, tagColor, findService } from './services'
 import ImportFormatsModal from './components/ImportFormatsModal'
+import SignInScreen from './components/SignInScreen'
 
 const GITHUB_AVATAR = 'https://avatars.githubusercontent.com/u/11523064?v=4'
 
@@ -346,6 +347,8 @@ export default function App() {
   const [loadingId, setLoadingId] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [user, setUser] = useState(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [devBypass, setDevBypass] = useState(false)
   const canAI = Boolean(user) || import.meta.env.DEV
   const rfInstance = useRef(null)
   const pendingFit = useRef(false)
@@ -376,7 +379,7 @@ export default function App() {
 
   // Owner sign-in state + one-time feedback from the OAuth redirect (?auth=).
   useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.authenticated) setUser(d) }).catch(() => {})
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.authenticated) setUser(d) }).catch(() => {}).finally(() => setAuthChecked(true))
     const p = new URLSearchParams(window.location.search).get('auth')
     if (p === 'denied') showToastMsg('That Google account is not authorized')
     else if (p === 'error') showToastMsg('Sign-in failed, try again')
@@ -547,6 +550,16 @@ export default function App() {
         </button>
       </div>
     )
+  }
+
+  // ── SIGN-IN GATE (signed-out home only) ─────────────────────────────────────
+  // Shared /?id= diagram views stay public (handled by the detail view); only the
+  // home/gallery requires sign-in. While the auth check is in flight, show the
+  // animated graph splash so an authed owner never flashes the sign-in card.
+  const hasIdParam = Boolean(new URLSearchParams(window.location.search).get('id'))
+  if (view === 'index' && !hasIdParam && !devBypass) {
+    if (!authChecked) return <SignInScreen loading />
+    if (!user) return <SignInScreen devBypass={() => setDevBypass(true)} />
   }
 
   // ── INDEX VIEW ──────────────────────────────────────────────────────────────
