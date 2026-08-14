@@ -13,7 +13,7 @@ export function IndexView({
   user, canAI,
   showMenu, setShowMenu, menuRef,
   showDocs, setShowDocs,
-  copiedLabel, setCopiedLabel,
+  copiedLabel, onCopyFormat,
   filtered,
   onOpen, onViewCode, onDeleteDiagram,
   signOut,
@@ -143,7 +143,7 @@ export function IndexView({
       {aiThinking && <AIThinkingOverlay />}
       {showAIPrompt && !aiThinking && (
         <div onClick={() => setShowAIPrompt(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: 20, padding: '32px 32px 28px', width: 520, boxShadow: '0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)' }}>
+          <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: '#ffffff', borderRadius: 20, padding: '32px 32px 28px', width: 520, boxShadow: '0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: '#1c1e21', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -178,7 +178,7 @@ export function IndexView({
         open={showDocs}
         onClose={() => setShowDocs(false)}
         copiedLabel={copiedLabel}
-        onCopy={(label, code) => { navigator.clipboard.writeText(code); setCopiedLabel(label); setTimeout(() => setCopiedLabel(null), 2000); }}
+        onCopy={onCopyFormat}
       />
 
       {/* ── Code slide-in panel ── */}

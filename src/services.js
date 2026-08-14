@@ -137,6 +137,7 @@ export function findService(data) {
   const byKeyIcon = Object.entries(SERVICES).find(([k, v]) => v.icon && id && (id.includes(k) || k.includes(id)))
   if (byKeyIcon) return byKeyIcon[1]
   if (byId) return byId
+  if (!lbl) return {}
   return Object.values(SERVICES).find(s => {
     const sl = s.label.toLowerCase()
     return sl === lbl || sl.includes(lbl) || lbl.includes(sl)

@@ -7,7 +7,7 @@ export default function ImportFormatsModal({ open, onClose, copiedLabel, onCopy 
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(6px)' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: 16, padding: '28px 32px', width: 560, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.12)' }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: '#ffffff', borderRadius: 16, padding: '28px 32px', width: 560, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.12)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', margin: 0 }}>Import Formats</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8a8d91', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>

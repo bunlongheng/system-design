@@ -40,6 +40,34 @@ describe("session token sign/verify", () => {
     expect(verifySession(null)).toBe(null);
     expect(verifySession("not-a-token")).toBe(null);
   });
+
+  it("includes iat in the signed payload", () => {
+    const before = Math.floor(Date.now() / 1000);
+    const t = signSession({ email: "owner@example.com" });
+    const s = verifySession(t);
+    expect(s.iat).toBeGreaterThanOrEqual(before);
+    expect(s.iat).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+  });
+
+  describe("SESSION_MIN_IAT rotation lever", () => {
+    const origMinIat = process.env.SESSION_MIN_IAT;
+    afterEach(() => {
+      if (origMinIat === undefined) delete process.env.SESSION_MIN_IAT;
+      else process.env.SESSION_MIN_IAT = origMinIat;
+    });
+
+    it("a token signed now verifies with no SESSION_MIN_IAT set", () => {
+      delete process.env.SESSION_MIN_IAT;
+      const t = signSession({ email: "owner@example.com" });
+      expect(verifySession(t)).not.toBe(null);
+    });
+
+    it("a token signed before SESSION_MIN_IAT no longer verifies", () => {
+      const t = signSession({ email: "owner@example.com" });
+      process.env.SESSION_MIN_IAT = String(Math.floor(Date.now() / 1000) + 1000);
+      expect(verifySession(t)).toBe(null);
+    });
+  });
 });
 
 describe("readCookie", () => {

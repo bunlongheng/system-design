@@ -90,6 +90,7 @@ curl -X POST https://system-design-bheng.vercel.app/api/ai/system-designs \
 - **Auth:** `Bearer $SYSTEM_DESIGNS_API_SECRET` (constant-time compare). A bad/missing token returns `401`.
 - **Body:** `title` (string, required), `nodes` (non-empty `[{ id, position }]`, required), `edges` (`[{ source, target, label?, animated? }]`), `type` (`"system-design"` only). Bad input returns `400` with a `sample_request`.
 - Each node `id` must be a known service key (e.g. `cloudfront`, `lambda`, `dynamo`, `s3`, `kinesis`, `sagemaker`, `waf`, `cognito`) so its AWS/GCP icon resolves.
+- **Rate limit:** 60 requests/min per IP; excess returns `429` with a `Retry-After` header.
 
 ### Internal / admin-only (NOT public)
 
@@ -123,9 +124,11 @@ system-design/
   lib/
     db.js              # PostgreSQL client (pg)
     auth-owner.js      # Bearer + owner auth helpers
+    auth-session.js    # Owner session cookie: HMAC sign/verify
     is-local.js        # Local/LAN detection for the dev bypass
     env.js             # Required-env validation (fails the prod build if missing)
     slugs.js           # Unique slug generation
+    rate-limit.js      # In-memory per-instance rate limiter
     wrap.js            # Error-wrapping middleware
     handlers/          # Shared handler logic (imported by api/ and serve.mjs)
   db/
