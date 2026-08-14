@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { signSession } from "../../lib/auth-session.js";
 
 // Mock the DB so the by-id handler's validation + auth can be tested without a
 // real Postgres, following the create-system-design.test.js pattern.
@@ -11,6 +12,7 @@ function mockRes() {
   return {
     statusCode: 0,
     body: null,
+    headers: {},
     status(c) {
       this.statusCode = c;
       return this;
@@ -19,34 +21,48 @@ function mockRes() {
       this.body = b;
       return this;
     },
+    setHeader(k, v) {
+      this.headers[k] = v;
+    },
   };
 }
 
 const SECRET = "test-secret-abc123";
 const ID = "11111111-1111-1111-1111-111111111111";
+const OWNER_EMAIL = "owner@example.com";
 
 // No `socket` property -> isLocal() falls through to the false branch, and
 // NODE_ENV=production keeps the prod gate deterministic.
-function req(method, id, auth) {
+function req(method, id, auth, cookie) {
   return {
     method,
     query: { id },
-    headers: { host: "system-design-bheng.vercel.app", authorization: auth },
+    headers: { host: "system-design-bheng.vercel.app", authorization: auth, cookie },
   };
 }
 
 describe("/api/system-designs/:id", () => {
-  const orig = { s: process.env.SYSTEM_DESIGNS_API_SECRET, o: process.env.OWNER_USER_ID, e: process.env.NODE_ENV };
+  const orig = {
+    s: process.env.SYSTEM_DESIGNS_API_SECRET,
+    o: process.env.OWNER_USER_ID,
+    e: process.env.NODE_ENV,
+    a: process.env.AUTH_SECRET,
+    oe: process.env.OWNER_EMAIL,
+  };
   beforeEach(() => {
     process.env.SYSTEM_DESIGNS_API_SECRET = SECRET;
     process.env.OWNER_USER_ID = "731ace87-64e5-44db-bf2a-82265f06f4d9";
     process.env.NODE_ENV = "production";
+    process.env.AUTH_SECRET = "test-auth-secret";
+    process.env.OWNER_EMAIL = OWNER_EMAIL;
     query.mockReset();
   });
   afterEach(() => {
     process.env.SYSTEM_DESIGNS_API_SECRET = orig.s;
     process.env.OWNER_USER_ID = orig.o;
     process.env.NODE_ENV = orig.e;
+    process.env.AUTH_SECRET = orig.a;
+    process.env.OWNER_EMAIL = orig.oe;
   });
 
   it("GET returns 200 with the row for a valid uuid that exists", async () => {
@@ -81,12 +97,20 @@ describe("/api/system-designs/:id", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("DELETE with a valid Bearer header returns 200 { deleted: true }", async () => {
+  it("DELETE with a valid owner session cookie returns 200 { deleted: true }", async () => {
     query.mockResolvedValueOnce({ rowCount: 1 });
     const res = mockRes();
-    await systemDesignById(req("DELETE", ID, `Bearer ${SECRET}`), res);
+    const cookie = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
+    await systemDesignById(req("DELETE", ID, undefined, cookie), res);
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ deleted: true });
+  });
+
+  it("DELETE with a valid Bearer header (no owner session) returns 401 and never queries the db", async () => {
+    const res = mockRes();
+    await systemDesignById(req("DELETE", ID, `Bearer ${SECRET}`), res);
+    expect(res.statusCode).toBe(401);
+    expect(query).not.toHaveBeenCalled();
   });
 
   it("DELETE with no Bearer (and not local) returns 401 and never queries the db", async () => {

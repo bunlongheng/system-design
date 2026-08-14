@@ -10,7 +10,10 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text"],
-      include: ["lib/**", "src/parseMermaid.js"],
+      include: ["lib/**", "src/**"],
+      // Ratchet: set just below current (lines ~53%, branches ~75%) so coverage
+      // can only go up. Raise these as more of App.jsx/views gets covered.
+      thresholds: { lines: 45, statements: 45, branches: 65, functions: 28 },
     },
   },
 });
