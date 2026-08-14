@@ -18,7 +18,7 @@ export function DetailView({
   detailCodeCopied, setDetailCodeCopied,
   nodes, edges,
   exportPng, exportCode, exportJson, copyLink, copiedLink, shareAction, copiedShare, copyCode, copiedCode,
-  showDocs, setShowDocs, copiedLabel, setCopiedLabel,
+  showDocs, setShowDocs, copiedLabel, onCopyFormat,
 }) {
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
@@ -241,7 +241,7 @@ export function DetailView({
         open={showDocs}
         onClose={() => setShowDocs(false)}
         copiedLabel={copiedLabel}
-        onCopy={(label, code) => { navigator.clipboard.writeText(code); setCopiedLabel(label); setTimeout(() => setCopiedLabel(null), 2000); }}
+        onCopy={onCopyFormat}
       />
 
       <style>{`

@@ -38,32 +38,25 @@ describe("DiagramCard", () => {
   it("calls onOpen when the card is clicked", async () => {
     const { onOpen } = setup();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /netflix/i }));
+    await user.click(screen.getByRole("button", { name: /open netflix/i }));
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
   it("calls onOpen when Enter is pressed on the card", async () => {
     const { onOpen } = setup();
-    const card = screen.getByRole("button", { name: /netflix/i });
+    const card = screen.getByRole("button", { name: /open netflix/i });
     card.focus();
     const user = userEvent.setup();
     await user.keyboard("{Enter}");
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onDelete when the delete button is clicked and confirm is true", async () => {
+  it("requires a second click on the confirm control before calling onDelete", async () => {
     const { onDelete } = setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const user = userEvent.setup({ pointerEventsCheck: 0 });
-    await user.click(screen.getByRole("button", { name: /delete/i }));
-    expect(onDelete).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not call onDelete when confirm is false", async () => {
-    const { onDelete } = setup();
-    vi.spyOn(window, "confirm").mockReturnValue(false);
-    const user = userEvent.setup({ pointerEventsCheck: 0 });
-    await user.click(screen.getByRole("button", { name: /delete/i }));
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
     expect(onDelete).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /delete\?/i }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
   });
 });

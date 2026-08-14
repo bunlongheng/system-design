@@ -63,6 +63,18 @@ export default function App() {
 
   useEffect(() => { if (showAIPrompt) aiInputRef.current?.focus() }, [showAIPrompt])
 
+  // Escape closes whichever dialog overlay is open, from anywhere on the page.
+  useEffect(() => {
+    if (!showAIPrompt && !showDocs) return
+    const onKeyDown = e => {
+      if (e.key !== 'Escape') return
+      if (showAIPrompt) setShowAIPrompt(false)
+      else if (showDocs) setShowDocs(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [showAIPrompt, showDocs])
+
   const loadDiagrams = useCallback(() => {
     fetch('/api/system-designs')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -91,14 +103,20 @@ export default function App() {
   }, [])
 
   function signOut() {
-    fetch('/api/auth/logout', { method: 'POST' }).then(() => { setUser(null); showToastMsg('Signed out') })
+    fetch('/api/auth/logout', { method: 'POST' }).then(() => { setUser(null); showToastMsg('Signed out') }).catch(() => showToastMsg('Sign out failed'))
   }
 
   function deleteDiagram(id) {
     fetch(`/api/system-designs/${id}`, { method: 'DELETE' }).then(res => {
       if (!res.ok) { showToastMsg('Delete failed'); return }
       loadDiagrams()
-    })
+    }).catch(() => showToastMsg('Delete failed'))
+  }
+
+  function copyFormat(label, code) {
+    navigator.clipboard.writeText(code)
+    setCopiedLabel(label)
+    setTimeout(() => setCopiedLabel(null), 2000)
   }
 
   async function submitAI() {
@@ -276,7 +294,7 @@ export default function App() {
         user={user} canAI={canAI}
         showMenu={showMenu} setShowMenu={setShowMenu} menuRef={menuRef}
         showDocs={showDocs} setShowDocs={setShowDocs}
-        copiedLabel={copiedLabel} setCopiedLabel={setCopiedLabel}
+        copiedLabel={copiedLabel} onCopyFormat={copyFormat}
         filtered={filtered}
         onOpen={openDiagram}
         onViewCode={setCodeDiagram}
@@ -380,7 +398,7 @@ export default function App() {
       shareAction={shareAction} copiedShare={copiedShare}
       copyCode={copyCode} copiedCode={copiedCode}
       showDocs={showDocs} setShowDocs={setShowDocs}
-      copiedLabel={copiedLabel} setCopiedLabel={setCopiedLabel}
+      copiedLabel={copiedLabel} onCopyFormat={copyFormat}
     />
   )
 }
