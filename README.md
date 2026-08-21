@@ -2,6 +2,9 @@
 
 # System Design
 
+<p align="center"><img src="docs/hero.png" alt="system-design" width="100%"></p>
+
+
 Interactive AWS/GCP system design diagram tool with React Flow, dagre auto-layout, and an AI-callable artifact API for programmatic diagram creation.
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -28,6 +31,32 @@ A Vite + React single-page app that renders interactive AWS and GCP system desig
 | Lint | ESLint |
 
 ## Architecture
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Browser["Browser - React SPA with React Flow canvas"]
+  Caller["AI agent or script with Bearer secret"]
+  Static["Vercel static hosting"]
+  API["API routes - Vercel functions in api/"]
+  Local["serve.mjs Express - local and CI"]
+  Handlers["lib/handlers - shared logic"]
+  DB[("PostgreSQL - system_designs table")]
+  Claude["Anthropic Claude API"]
+
+  Browser -->|"loads static build"| Static
+  Browser -->|"GET list and fetch design by id"| API
+  Browser -->|"POST /api/ai/generate - owner session only"| API
+  Caller -->|"POST /api/ai/system-designs - render-only"| API
+  API --> Handlers
+  Local -->|"mounts same routes"| Handlers
+  Handlers -->|"read and write designs"| DB
+  Handlers -->|"prompt to diagram JSON"| Claude
+```
+
+*The React SPA and external Bearer-authenticated callers hit the same API routes, which funnel into shared lib/handlers backed by PostgreSQL - only the owner-gated generate route ever calls Claude.*
+
 
 The browser SPA is a static build served by Vercel. Requests to `/api/*` hit Vercel serverless functions in `api/`, which are thin wrappers around the shared handlers in `lib/handlers/`. Those handlers talk to a PostgreSQL database (`system_designs` table). Locally and in CI, `serve.mjs` runs the exact same handlers behind Express so `npm run start` is a prod-like single process.
 
@@ -191,3 +220,9 @@ MIT (c) Bunlong Heng - see [LICENSE](./LICENSE).
 ---
 
 Built by [Bunlong Heng](https://www.bunlongheng.com) | [GitHub](https://github.com/bunlongheng/system-design)
+
+---
+
+<p align="center">
+  <sub>Built by <a href="https://bunlongheng.com">Bunlong Heng</a> &middot; <a href="https://bunlongheng.com/projects/system-design">See it in my portfolio &rarr;</a></sub>
+</p>
