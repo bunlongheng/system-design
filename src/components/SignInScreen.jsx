@@ -1,52 +1,36 @@
 // Signed-out landing. Family style (mindmaps/diagrams/stickies): a centered card
-// (logo + title + tagline + Continue with Google) over an animated motif of the
-// app's own thing. Here the motif is the full AWS service-icon set: all 45 real
-// AWS icons scatter across the screen, pop in on load (staggered), then float
-// gently. Self-contained (icons are same-origin /icons/*, CSP-safe - no CDN
-// fonts), aria-hidden decoration, respects prefers-reduced-motion.
+// with logo + title + one-line tagline + "Continue with Google", over an animated
+// decorative motif of the app's own thing. Here the motif is a live architecture
+// graph that wires itself together on load - service nodes pop in and edges draw
+// between them, then the whole scene drifts gently. Self-contained (no CDN fonts:
+// the strict CSP blocks them), aria-hidden decoration, prefers-reduced-motion safe.
 
-const AWS_ICONS = [
-  "apigateway.png", "aws-acm.svg", "aws-amplify.svg", "aws-appsync.svg", "aws-athena.svg",
-  "aws-aurora.svg", "aws-cloudformation.svg", "aws-codebuild.svg", "aws-codedeploy.svg",
-  "aws-codepipeline.svg", "aws-cognito.svg", "aws-dynamodb-streams.svg", "aws-ecr.svg",
-  "aws-ecs.svg", "aws-eks.svg", "aws-elasticbeanstalk.svg", "aws-fargate.svg", "aws-glue.svg",
-  "aws-iam.svg", "aws-kinesis.svg", "aws-redshift.svg", "aws-route53.svg", "aws-secrets-manager.svg",
-  "aws-ses.svg", "aws-shield.svg", "aws-vpc.svg", "aws-waf.svg", "cloudfront.png", "cloudtrail.png",
-  "cloudwatch.png", "dynamodb.png", "ec2.png", "elasticache.png", "elb.png", "eventbridge.png",
-  "keyspaces.png", "kms.png", "lambda.png", "opensearch.png", "rds.png", "s3.png", "sagemaker.png",
-  "sns.png", "sqs.png", "stepfunctions.png",
+// A small, plausible architecture laid out on a 1200x760 canvas. Nodes sit around
+// the edges so their connecting lines cross behind the centered card (depth).
+const NODES = [
+  { id: "user", label: "User", x: 120, y: 120, c: "#3b82f6" },
+  { id: "cf", label: "CloudFront", x: 330, y: 90, c: "#8C4FFF" },
+  { id: "waf", label: "WAF", x: 120, y: 300, c: "#ef4444" },
+  { id: "apigw", label: "API Gateway", x: 340, y: 300, c: "#a855f7" },
+  { id: "lambda", label: "Lambda", x: 560, y: 200, c: "#f97316" },
+  { id: "dynamo", label: "DynamoDB", x: 560, y: 420, c: "#dc2626" },
+  { id: "sqs", label: "SQS", x: 850, y: 120, c: "#f59e0b" },
+  { id: "kinesis", label: "Kinesis", x: 1050, y: 230, c: "#6366f1" },
+  { id: "s3", label: "S3", x: 850, y: 340, c: "#16a34a" },
+  { id: "rds", label: "Aurora", x: 1050, y: 470, c: "#1d4ed8" },
+  { id: "cache", label: "ElastiCache", x: 640, y: 620, c: "#ef4444" },
+  { id: "cw", label: "CloudWatch", x: 300, y: 560, c: "#ec4899" },
+];
+const NI = Object.fromEntries(NODES.map((n, i) => [n.id, i]));
+const EDGES = [
+  ["user", "cf"], ["user", "waf"], ["cf", "apigw"], ["waf", "apigw"],
+  ["apigw", "lambda"], ["lambda", "dynamo"], ["lambda", "sqs"], ["sqs", "kinesis"],
+  ["lambda", "s3"], ["dynamo", "rds"], ["lambda", "cache"], ["apigw", "cw"],
+  ["kinesis", "s3"], ["dynamo", "cache"],
 ];
 
-// Deterministic scatter across a COLS x ROWS grid, skipping the center cells so
-// the card sits in clear space. One icon per cell (+ small per-cell jitter).
-const COLS = 10;
-const ROWS = 7;
-function layout() {
-  const cells = [];
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const deadX = c >= 3 && c <= 6; // center columns
-      const deadY = r >= 2 && r <= 4; // center rows
-      if (deadX && deadY) continue; // keep the card's zone clear
-      cells.push([c, r]);
-    }
-  }
-  return AWS_ICONS.map((icon, i) => {
-    const [c, r] = cells[i % cells.length];
-    const jx = ((i * 37) % 11) - 5; // deterministic +-5%
-    const jy = ((i * 53) % 9) - 4;
-    return {
-      icon,
-      left: ((c + 0.5) / COLS) * 100 + jx * 0.4,
-      top: ((r + 0.5) / ROWS) * 100 + jy * 0.5,
-      size: 34 + ((i * 7) % 4) * 5, // 34-49px, varied for depth
-      floatDur: 4 + ((i * 3) % 5) * 0.8, // 4.0 - 7.2s
-      floatDelay: ((i * 5) % 9) * 0.4,
-      popDelay: 0.15 + i * 0.035,
-    };
-  });
-}
-const TILES = layout();
+const NODE_W = 128;
+const NODE_H = 40;
 
 function GoogleG() {
   return (
@@ -60,50 +44,60 @@ function GoogleG() {
 }
 
 export default function SignInScreen({ devBypass, loading }) {
+  const W = 1200, H = 760;
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #f1f4f9 55%, #e7ecf5 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif" }}>
       <style>{`
-        @keyframes siPop { from { opacity: 0; transform: scale(0.55); } to { opacity: 0.95; transform: scale(1); } }
-        @keyframes siFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+        @keyframes siDraw { from { stroke-dashoffset: 640; } to { stroke-dashoffset: 0; } }
+        @keyframes siPop  { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
+        @keyframes siDrift { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(0,-10px,0); } }
         @keyframes siCardIn { from { opacity: 0; transform: translateY(20px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
-        .si-tile { position: absolute; animation: siFloat var(--fd) ease-in-out var(--fdelay) infinite; }
-        .si-tilein { animation: siPop 0.55s cubic-bezier(.2,.8,.2,1) both; will-change: transform, opacity; }
+        @keyframes siPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+        .si-edge { stroke-dasharray: 640; animation: siDraw 1.1s ease forwards; }
+        .si-node { transform-box: fill-box; transform-origin: center; animation: siPop 0.5s cubic-bezier(.2,.8,.2,1) both; }
+        .si-scene { animation: siDrift 9s ease-in-out infinite; }
         .si-card { animation: siCardIn 0.6s cubic-bezier(.2,.8,.2,1) both; }
         .si-btn { transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
         .si-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(20,30,60,0.14); border-color: #c7cede; }
+        .si-dot { animation: siPulse 2.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
-          .si-tile, .si-tilein, .si-card { animation: none !important; }
-          .si-tilein { opacity: 0.95 !important; }
+          .si-edge, .si-node, .si-scene, .si-card, .si-dot { animation: none !important; stroke-dashoffset: 0 !important; opacity: 1 !important; }
         }
       `}</style>
 
-      {/* Decorative field of all 45 real AWS service icons */}
-      <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-        {TILES.map((t, i) => (
-          <div key={i} className="si-tile"
-            style={{ left: `${t.left}%`, top: `${t.top}%`, "--fd": `${t.floatDur}s`, "--fdelay": `${t.floatDelay}s` }}>
-            <div className="si-tilein" style={{ animationDelay: `${t.popDelay}s` }}>
-              <div style={{ width: t.size, height: t.size, borderRadius: t.size * 0.28, background: "#ffffff", boxShadow: "0 4px 14px rgba(20,30,60,0.10), 0 0 0 1px rgba(20,30,60,0.05)", display: "flex", alignItems: "center", justifyContent: "center", transform: "translate(-50%, -50%)" }}>
-                <img src={`/icons/${t.icon}`} alt="" width={t.size * 0.62} height={t.size * 0.62} style={{ objectFit: "contain" }} loading="eager" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Decorative live architecture graph */}
+      <svg aria-hidden="true" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+        <g className="si-scene" opacity="0.4">
+          {EDGES.map(([a, b], i) => {
+            const na = NODES[NI[a]], nb = NODES[NI[b]];
+            return (
+              <line key={i} className="si-edge"
+                x1={na.x} y1={na.y} x2={nb.x} y2={nb.y}
+                stroke="#9aa7bd" strokeWidth="1.5" strokeLinecap="round"
+                style={{ animationDelay: `${0.15 + i * 0.06}s` }} />
+            );
+          })}
+          {NODES.map((n, i) => (
+            <g key={n.id} className="si-node" style={{ animationDelay: `${0.5 + i * 0.07}s` }}>
+              <rect x={n.x - NODE_W / 2} y={n.y - NODE_H / 2} width={NODE_W} height={NODE_H} rx="10"
+                fill="#ffffff" stroke={`${n.c}55`} strokeWidth="1.5" />
+              <circle className="si-dot" cx={n.x - NODE_W / 2 + 20} cy={n.y} r="6" fill={n.c}
+                style={{ animationDelay: `${i * 0.2}s` }} />
+              <text x={n.x - NODE_W / 2 + 36} y={n.y + 4} fontSize="13" fontWeight="600"
+                fontFamily="ui-monospace, 'SF Mono', Menlo, monospace" fill="#334155">{n.label}</text>
+            </g>
+          ))}
+        </g>
+      </svg>
 
       {/* Sign-in card (hidden during the brief auth check so an authed owner
-          never flashes the sign-in card - they just see the icon field). */}
+          never flashes the sign-in card - they just see the graph splash). */}
       {!loading && (
-      <div className="si-card" style={{ position: "relative", width: 380, maxWidth: "calc(100vw - 32px)", background: "rgba(255,255,255,0.9)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderRadius: 22, padding: "40px 36px 32px", boxShadow: "0 24px 70px rgba(30,45,90,0.22), 0 0 0 1px rgba(30,45,90,0.06)", textAlign: "center" }}>
-        {/* Logo tile */}
-        <div style={{ width: 60, height: 60, borderRadius: 16, margin: "0 auto 18px", background: "#1c1e21", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 22px rgba(28,30,33,0.28)" }}>
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="3" y="3" width="7" height="7" rx="1.5" />
-            <rect x="14" y="3" width="7" height="7" rx="1.5" />
-            <rect x="8.5" y="14" width="7" height="7" rx="1.5" />
-            <path d="M6.5 10v2.5h11V10M12 17v-2.5" />
-          </svg>
-        </div>
+      <div className="si-card" style={{ position: "relative", width: 380, maxWidth: "calc(100vw - 32px)", background: "rgba(255,255,255,0.86)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: 22, padding: "40px 36px 32px", boxShadow: "0 24px 70px rgba(30,45,90,0.18), 0 0 0 1px rgba(30,45,90,0.06)", textAlign: "center" }}>
+        {/* Real app icon (the brand mark, same as favicon / PWA icon) */}
+        <img src="/icon.png" alt="System Design" width={60} height={60}
+          style={{ display: "block", margin: "0 auto 18px", borderRadius: 16, boxShadow: "0 8px 22px rgba(28,30,33,0.28)" }} />
 
         <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.03em", color: "#111827", margin: 0 }}>System Design</h1>
         <p style={{ fontSize: 13.5, color: "#6b7280", margin: "8px 0 26px", lineHeight: 1.5 }}>
