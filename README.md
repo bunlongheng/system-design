@@ -1,4 +1,14 @@
 <div align="center">
+  <img src="docs/icon.png" alt="System Design" width="96" height="96" />
+  <h1>System Design</h1>
+  <p><em>Prompt to a laid-out AWS/GCP architecture diagram, drawn by Claude</em></p>
+  <p><a href="https://system-design-bheng.vercel.app">Live</a> &middot; <a href="https://github.com/bunlongheng/system-design">Repo</a> &middot; <a href="https://bunlongheng.com/projects?name=system-design">Portfolio</a></p>
+  <img src="docs/social-preview.png" alt="System Design - preview" width="820" />
+</div>
+
+---
+
+<div align="center">
 
 # System Design
 
