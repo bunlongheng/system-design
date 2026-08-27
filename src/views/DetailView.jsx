@@ -16,7 +16,7 @@ export function DetailView({
   showSharePanel, setShowSharePanel,
   activeDiagram,
   detailCodeCopied, setDetailCodeCopied,
-  nodes, edges,
+  nodes, edges, onNodesChange,
   exportPng, exportCode, exportJson, copyLink, copiedLink, shareAction, copiedShare, copyCode, copiedCode,
   showDocs, setShowDocs, copiedLabel, onCopyFormat,
   showToastMsg,
@@ -48,6 +48,11 @@ export function DetailView({
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
+
+        {/* Diagram name */}
+        <span style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+          {activeDiagram?.title || 'Untitled diagram'}
+        </span>
 
         <div style={{ flex: 1 }} />
 
@@ -155,11 +160,12 @@ export function DetailView({
         <div style={{ flex: 1, position: 'relative', background: '#e8ecf0' }}>
           <ReactFlow
             nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
             onInit={inst => { rfInstanceRef.current = inst }}
             onMoveEnd={(_, viewport) => flashZoomHud(viewport.zoom)}
-            fitView fitViewOptions={{ padding: 0.12 }}
-            nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
-            panOnDrag zoomOnScroll minZoom={0.3} maxZoom={2.5}
+            fitView fitViewOptions={{ padding: 0.15 }}
+            nodesDraggable nodesConnectable={false} elementsSelectable
+            panOnDrag zoomOnScroll minZoom={0.2} maxZoom={2.5}
             proOptions={{ hideAttribution: true }}
           >
             <Background variant="dots" gap={24} size={1} color="#d1d5db" />

@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { tagColor } from '../services'
 import { relativeTime } from '../timeAgo'
 import { DiagramMinimap } from './DiagramMinimap'
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export function DiagramCard({ diagram, title, updatedAt, tags, onOpen, onViewCode, onDelete }) {
+export function DiagramCard({ diagram, title, updatedAt, onOpen, onViewCode, onDelete }) {
   const [active, setActive] = useState(false) // hover OR keyboard focus (for the card's own lift)
   const [confirming, setConfirming] = useState(false) // delete: awaiting the confirm click
   const confirmTimer = useRef(null)
@@ -75,14 +74,15 @@ export function DiagramCard({ diagram, title, updatedAt, tags, onOpen, onViewCod
         <span style={{ fontSize: 10, color: '#8a8d91', flexShrink: 0 }}>{relativeTime(updatedAt)}</span>
       </div>
 
-      {/* Tags */}
-      {tags?.length > 0 && (
-        <div style={{ padding: '0 13px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {tags.map(t => { const s = tagColor(t); return (
-            <span key={t} style={{ fontSize: 11, fontWeight: 700, padding: '1px 4px', borderRadius: 20, background: s.bg, color: s.text, border: `1px solid ${s.border}`, letterSpacing: '0.02em', lineHeight: 1.4 }}>{t}</span>
-          ); })}
-        </div>
-      )}
+      {/* Node / edge counts */}
+      <div style={{ padding: '0 13px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 20, background: '#eef2f7', color: '#64748b', border: '1px solid #e3e8ee', letterSpacing: '0.01em', lineHeight: 1.5 }}>
+          {diagram.nodes.length} {diagram.nodes.length === 1 ? 'node' : 'nodes'}
+        </span>
+        <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 20, background: '#eef2f7', color: '#64748b', border: '1px solid #e3e8ee', letterSpacing: '0.01em', lineHeight: 1.5 }}>
+          {diagram.edges.length} {diagram.edges.length === 1 ? 'edge' : 'edges'}
+        </span>
+      </div>
 
       {/* Minimap */}
       <div style={{ padding: '0 12px 13px' }}>

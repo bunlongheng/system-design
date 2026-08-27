@@ -64,7 +64,7 @@ export function parseMermaid(text) {
     label: e.label || undefined,
     animated: false,
     style: { stroke: '#6b7280', strokeWidth: 1.8 },
-    labelStyle: { fill: '#374151', fontSize: 10, fontWeight: 600 },
+    labelStyle: { fill: '#374151', fontSize: 8, fontWeight: 600 },
     labelBgStyle: { fill: '#ffffff', fillOpacity: 1 },
     labelBgPadding: [4, 8],
     labelBgBorderRadius: 6,
