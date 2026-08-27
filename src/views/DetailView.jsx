@@ -4,6 +4,7 @@ import diagramData from '../data/diagram.json'
 import { tagColor } from '../services'
 import ImportFormatsModal from '../components/ImportFormatsModal'
 import { nodeTypes } from '../components/AwsNode'
+import { edgeTypes } from '../components/GradientEdge'
 import { Toast } from '../components/Toast'
 
 // ─── Detail (canvas) view ───────────────────────────────────────────────────
@@ -159,7 +160,7 @@ export function DetailView({
         {/* Canvas */}
         <div style={{ flex: 1, position: 'relative', background: '#e8ecf0' }}>
           <ReactFlow
-            nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+            nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
             onInit={inst => { rfInstanceRef.current = inst }}
             onMoveEnd={(_, viewport) => flashZoomHud(viewport.zoom)}
