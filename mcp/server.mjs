@@ -42,7 +42,15 @@ function toStoredEdges(edges) {
     ...(e.label ? { label: e.label } : {}),
   }))
 }
-const unknownServices = nodes => [...new Set(nodes.map(n => n.id).filter(id => !SERVICES[id]))]
+const unknownServices = nodes => [...new Set(nodes.map(n => n.id).filter(id => !SERVICES[id]?.icon))]
+// HARD GATE: refuse nodes that have no logo (unknown service key). Returns an
+// error result to send back, or null if every node is a real service.
+const logoGate = nodes => {
+  const missing = unknownServices(nodes)
+  return missing.length
+    ? fail(`Rejected: every node must use a known service that has a logo. No logo for: ${missing.join(', ')}. Call list_services for valid keys, then pick real services.`)
+    : null
+}
 
 const server = new McpServer({ name: 'system-design', version: '1.0.0' })
 
@@ -111,6 +119,8 @@ server.registerTool(
   },
   async ({ title, nodes, edges }) => {
     try {
+      const gate = logoGate(nodes)
+      if (gate) return gate
       const o = owner()
       const slug = await uniqueSystemDesignSlug(o, title)
       const storedNodes = toStoredNodes(nodes)
@@ -120,7 +130,7 @@ server.registerTool(
         [o, title.trim(), slug, JSON.stringify(storedNodes), JSON.stringify(storedEdges), 'system-design', ['MCP']],
       )
       const id = rows[0].id
-      return ok({ id, url: urlFor(id), unknown_services: unknownServices(nodes) })
+      return ok({ id, url: urlFor(id) })
     } catch (e) { return fail(`create failed: ${e.message}`) }
   },
 )
@@ -140,6 +150,7 @@ server.registerTool(
   },
   async ({ id, title, nodes, edges }) => {
     try {
+      if (nodes) { const gate = logoGate(nodes); if (gate) return gate }
       const { rows } = await db.query(
         `UPDATE system_designs SET
            title = COALESCE($2, title),
@@ -202,7 +213,7 @@ server.registerTool(
   async () => ok({
     rules: [
       'A diagram is { title, nodes, edges }.',
-      'Each node id MUST be a service key from list_services (e.g. "user","apigw","lambda","ses","dynamo","kafka","redis","s3").',
+      'HARD REQUIREMENT: every node id MUST be a known service key from list_services (each has a logo). Unknown ids are REJECTED - no bare-letter nodes allowed.',
       'A service key can appear at most once per diagram (node ids are unique).',
       'Edges are directed { source, target, label? } using node ids; order them in execution/flow order.',
       'Node positions (x,y) are optional - the app auto-layouts on open.',

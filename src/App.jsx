@@ -55,6 +55,7 @@ export default function App() {
   const [detailCodeCopied, setDetailCodeCopied] = useState(false)
   const [showSharePanel, setShowSharePanel] = useState(false)
   const [showSteps, setShowSteps] = useState(false)
+  const [badgeMode, setBadgeMode] = useState('dark') // dark | silver | color | plain
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedShare, setCopiedShare] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
@@ -347,14 +348,19 @@ export default function App() {
   function exportPng() {
     const el = document.querySelector('.react-flow')
     if (!el) return
-    return import('html-to-image').then(({ toPng }) => (
-      toPng(el, { backgroundColor: '#e8ecf0', pixelRatio: 2 }).then(url => {
+    // Fit all nodes first, then capture on a clean WHITE page with NO dot grid.
+    rfInstance.current?.fitView({ padding: 0.15 })
+    return new Promise(r => setTimeout(r, 300))
+      .then(() => import('html-to-image'))
+      .then(({ toPng }) => toPng(el, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        filter: node => !(node.classList && node.classList.contains('react-flow__background')),
+      }))
+      .then(url => {
         const a = document.createElement('a'); a.href = url; a.download = exportFilename('png'); a.click()
       })
-    )).catch(() => {
-      // fallback: screenshot via canvas not available, just notify
-      showToastMsg('PNG export requires html-to-image package')
-    })
+      .catch(() => showToastMsg('PNG export requires html-to-image package'))
   }
 
   function exportJson() {
@@ -423,6 +429,7 @@ export default function App() {
       rfInstance={rfInstance} flashZoomHud={flashZoomHud} zoomHudRef={zoomHudRef}
       showSharePanel={showSharePanel} setShowSharePanel={setShowSharePanel}
       showSteps={showSteps} setShowSteps={setShowSteps}
+      badgeMode={badgeMode} setBadgeMode={setBadgeMode}
       activeDiagram={activeDiagram}
       detailCodeCopied={detailCodeCopied} setDetailCodeCopied={setDetailCodeCopied}
       nodes={nodes} edges={edges} onNodesChange={onNodesChange}

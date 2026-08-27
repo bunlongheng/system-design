@@ -8,10 +8,11 @@ describe("findService", () => {
     expect(svc.icon).toContain("lambda");
   });
 
-  it("falls back to an emoji service (no icon) by id", () => {
+  it("resolves a generic service to a real icon (never an emoji) by id", () => {
     const svc = findService({ id: "user" });
     expect(svc.label).toBe("User");
-    expect(svc.emoji).toBeTruthy();
+    expect(svc.icon).toContain("gen-user");
+    expect(svc.emoji).toBeFalsy();
   });
 
   it("matches by label when the id is unknown", () => {

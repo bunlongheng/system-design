@@ -16,6 +16,7 @@ export function DetailView({
   rfInstance: rfInstanceRef, flashZoomHud, zoomHudRef,
   showSharePanel, setShowSharePanel,
   showSteps, setShowSteps,
+  badgeMode, setBadgeMode,
   activeDiagram,
   detailCodeCopied, setDetailCodeCopied,
   nodes, edges, onNodesChange,
@@ -29,7 +30,7 @@ export function DetailView({
 
       {/* Header — diagrams-style floating pill toolbar */}
       <header style={{
-        height: 54, background: '#ffffff', borderBottom: '1px solid #e4e6e8',
+        height: 54, background: 'linear-gradient(180deg, #e9ebee 0%, #d3d7dc 100%)', borderBottom: '1px solid #c2c6cc',
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0,
       }}>
         {/* Back button */}
@@ -124,6 +125,29 @@ export function DetailView({
 
           <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
+          {/* Badge style cycle: silver -> color -> dark -> plain */}
+          <button onClick={() => {
+            const order = ['silver', 'color', 'dark', 'plain']
+            setBadgeMode(m => order[(order.indexOf(m) + 1) % order.length])
+          }} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+            background: 'transparent', color: '#64748b',
+            cursor: 'pointer', fontSize: 13, fontWeight: 400,
+            transition: 'all 0.1s', fontFamily: 'inherit',
+          }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            title="Cycle badge style"
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+            {{ silver: 'Silver', color: 'Color', dark: 'Dark', plain: 'Plain' }[badgeMode]}
+          </button>
+
+          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+
           {/* Share toggle */}
           <button onClick={() => setShowSharePanel(v => !v)} style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -180,19 +204,19 @@ export function DetailView({
         )}
 
         {/* Canvas */}
-        <div style={{ flex: 1, position: 'relative', background: '#e8ecf0' }}>
+        <div style={{ flex: 1, position: 'relative', background: '#ffffff' }}>
           <ReactFlow
-            className={showSteps ? 'sd-steps-on' : ''}
+            className={`${showSteps ? 'sd-steps-on ' : ''}sd-badge-${badgeMode}`}
             nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
-            onInit={inst => { rfInstanceRef.current = inst }}
+            onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => inst.fitView({ padding: 0.15 }), 0) }}
             onMoveEnd={(_, viewport) => flashZoomHud(viewport.zoom)}
             fitView fitViewOptions={{ padding: 0.15 }}
             nodesDraggable nodesConnectable={false} elementsSelectable
             panOnDrag zoomOnScroll minZoom={0.2} maxZoom={2.5}
             proOptions={{ hideAttribution: true }}
           >
-            <Background variant="dots" gap={24} size={1} color="#d1d5db" />
+            <Background variant="dots" gap={24} size={1} color="#e6e8eb" />
           </ReactFlow>
 
           {/* Zoom HUD */}
@@ -278,9 +302,43 @@ export function DetailView({
       />
 
       <style>{`
-        /* Step number badges: hidden until the Steps toggle turns them on. */
-        .sd-step-badge { display: none; }
-        .sd-steps-on .sd-step-badge { display: flex; }
+        /* Edge label badge - shared layout; per-edge gradient comes from
+           --c1/--c2 set inline. Appearance switches by wrapper mode class. */
+        .sd-edge-badge {
+          position: absolute; display: flex; align-items: center; gap: 4px;
+          padding: 2px 7px; border-radius: 999px;
+          font-size: 8px; font-weight: 700; line-height: 1.4;
+          letter-spacing: 0.01em; white-space: nowrap; pointer-events: none;
+        }
+        /* 1) Silver fill + gradient border, dark text (default) */
+        .sd-badge-silver .sd-edge-badge {
+          color: #1e2733; border: 1.5px solid transparent;
+          background:
+            linear-gradient(#e9ebee, #e9ebee) padding-box,
+            linear-gradient(90deg, var(--c1), var(--c2)) border-box;
+        }
+        /* 2) Colorized gradient fill, white text */
+        .sd-badge-color .sd-edge-badge {
+          color: #fff; border: none; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+          background: linear-gradient(90deg, var(--c1), var(--c2));
+        }
+        /* 3) Dark badge, white text */
+        .sd-badge-dark .sd-edge-badge {
+          color: #fff; border: none; background: #1c1e21;
+        }
+        /* 4) Plain silver, black text */
+        .sd-badge-plain .sd-edge-badge {
+          color: #1e2733; border: 1.5px solid #c2c6cc; background: #e9ebee;
+        }
+        /* Step number chip inside the badge - hidden until Steps toggle is on. */
+        .sd-step-chip { display: none; }
+        .sd-steps-on .sd-step-chip {
+          display: inline-flex; align-items: center; justify-content: center;
+          min-width: 12px; height: 12px; padding: 0 3px; border-radius: 999px;
+          font-size: 8px; font-weight: 800; background: #1c1e21; color: #fff;
+        }
+        /* On a dark badge the dark chip would vanish - flip it. */
+        .sd-badge-dark .sd-step-chip { background: #fff; color: #1c1e21; }
         /* On phones the fixed-width side panels would crush the canvas, so drop
            them to full-width bottom sheets over the canvas instead. */
         @media (max-width: 640px) {
