@@ -21,7 +21,7 @@ export function GradientEdge({
           <stop offset="100%" stopColor={c2} />
         </linearGradient>
       </defs>
-      <BaseEdge id={id} path={path} markerEnd={markerEnd} style={{ stroke: `url(#${gid})`, strokeWidth: 2.5 }} />
+      <BaseEdge id={id} path={path} markerEnd={markerEnd} style={{ stroke: `url(#${gid})`, strokeWidth: 1.5 }} />
       {label && (
         <EdgeLabelRenderer>
           <div
@@ -30,7 +30,7 @@ export function GradientEdge({
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               background: `linear-gradient(90deg, ${c1}, ${c2})`,
               color: '#ffffff', fontSize: 8, fontWeight: 700, lineHeight: 1.4,
-              padding: '2px 6px', whiteSpace: 'nowrap', pointerEvents: 'none',
+              padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap', pointerEvents: 'none',
               textShadow: '0 1px 2px rgba(0,0,0,0.5)', letterSpacing: '0.01em',
             }}
           >
