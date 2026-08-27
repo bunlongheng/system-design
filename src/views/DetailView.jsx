@@ -302,12 +302,15 @@ export function DetailView({
       />
 
       <style>{`
+        /* Start/End connector arrow: same thickness + marching flow as edges. */
+        @keyframes sd-marker-dash { to { stroke-dashoffset: -18; } }
+        .sd-marker-line { stroke-dasharray: 5 4; animation: sd-marker-dash 0.5s linear infinite; }
         /* Edge label badge - shared layout; per-edge gradient comes from
            --c1/--c2 set inline. Appearance switches by wrapper mode class. */
         .sd-edge-badge {
-          position: absolute; display: flex; align-items: center; gap: 4px;
-          padding: 2px 7px; border-radius: 999px;
-          font-size: 8px; font-weight: 700; line-height: 1.4;
+          position: absolute; display: flex; align-items: center; gap: 5px;
+          padding: 3px 9px; border-radius: 999px;
+          font-size: 10px; font-weight: 700; line-height: 1.4;
           letter-spacing: 0.01em; white-space: nowrap; pointer-events: none;
         }
         /* 1) Silver fill + gradient border, dark text (default) */
@@ -334,8 +337,8 @@ export function DetailView({
         .sd-step-chip { display: none; }
         .sd-steps-on .sd-step-chip {
           display: inline-flex; align-items: center; justify-content: center;
-          min-width: 12px; height: 12px; padding: 0 3px; border-radius: 999px;
-          font-size: 8px; font-weight: 800; background: #1c1e21; color: #fff;
+          min-width: 13px; height: 13px; padding: 0 3px; border-radius: 999px;
+          font-size: 9px; font-weight: 800; background: #1c1e21; color: #fff;
         }
         /* On a dark badge the dark chip would vanish - flip it. */
         .sd-badge-dark .sd-step-chip { background: #fff; color: #1c1e21; }

@@ -4,25 +4,33 @@ import { PALETTE } from '../services'
 
 export function DiagramMinimap({ diagram }) {
   const W = 224, H = 112
-  const nodeIds = diagram.nodes.map(n => n.id)
-  const n = nodeIds.length
+  // Some diagrams (created via the API without coordinates) have nodes with no
+  // position. Fall back to a simple grid so a single such diagram can never
+  // crash the whole gallery.
+  const nds = (diagram.nodes || []).map((nd, i) => ({
+    id: nd.id,
+    position: nd.position && typeof nd.position.x === 'number' && typeof nd.position.y === 'number'
+      ? nd.position
+      : { x: (i % 6) * 100, y: Math.floor(i / 6) * 100 },
+  }))
+  const n = nds.length
   if (!n) return <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', background: '#ffffff', borderRadius: 8 }} />
 
   // Compute positions from diagram data
-  const xs = diagram.nodes.map(nd => nd.position.x)
-  const ys = diagram.nodes.map(nd => nd.position.y)
+  const xs = nds.map(nd => nd.position.x)
+  const ys = nds.map(nd => nd.position.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs)
   const minY = Math.min(...ys), maxY = Math.max(...ys)
   const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1
   const pad = 20
 
-  const positions = diagram.nodes.map(nd => ([
+  const positions = nds.map(nd => ([
     pad + ((nd.position.x - minX) / rangeX) * (W - pad * 2),
     pad + ((nd.position.y - minY) / rangeY) * (H - pad * 2),
   ]))
 
   const posMap = {}
-  diagram.nodes.forEach((nd, i) => { posMap[nd.id] = positions[i] })
+  nds.forEach((nd, i) => { posMap[nd.id] = positions[i] })
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', background: '#ffffff', borderRadius: 8 }}>
