@@ -2,9 +2,25 @@ import { useState, useRef, useEffect } from 'react'
 import { relativeTime } from '../timeAgo'
 import { DiagramMinimap } from './DiagramMinimap'
 
+// Real-world brand per demo (logo + one-line subtitle). Keyed by the clean title.
+const BRANDS = {
+  stripe: { icon: '/brand/stripe.svg', sub: 'Payments' },
+  twitter: { icon: '/brand/twitter.svg', sub: 'News Feed' },
+  netflix: { icon: '/brand/netflix.svg', sub: 'Video Streaming' },
+  youtube: { icon: '/brand/youtube.svg', sub: 'Video Streaming' },
+  uber: { icon: '/brand/uber.svg', sub: 'Realtime Matching' },
+  slack: { icon: '/brand/slack.svg', sub: 'Realtime Chat' },
+  dropbox: { icon: '/brand/dropbox.svg', sub: 'File Sync' },
+  bitly: { icon: '/brand/bitly.svg', sub: 'URL Shortener' },
+  'llm inference': { icon: '/brand/anthropic.svg', sub: 'AI Inference' },
+  'rate limiter': { icon: '/brand/cloudflare.svg', sub: 'Rate Limiting' },
+}
+const brandFor = title => BRANDS[String(title || '').trim().toLowerCase()] || null
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export function DiagramCard({ diagram, title, updatedAt, onOpen, onViewCode, onDelete }) {
+export function DiagramCard({ diagram, title, updatedAt, showBrand, onOpen, onViewCode, onDelete }) {
+  const brand = showBrand ? brandFor(title) : null
   const [active, setActive] = useState(false) // hover OR keyboard focus (for the card's own lift)
   const [confirming, setConfirming] = useState(false) // delete: awaiting the confirm click
   const confirmTimer = useRef(null)
@@ -67,10 +83,16 @@ export function DiagramCard({ diagram, title, updatedAt, onOpen, onViewCode, onD
       />
 
       {/* Header */}
-      <div style={{ padding: '13px 14px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1e21', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {title}
-        </span>
+      <div style={{ padding: '13px 14px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        {brand && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 9, background: '#f4f5f7', border: '1px solid #e7e9ee', flexShrink: 0 }}>
+            <img src={brand.icon} alt="" width={19} height={19} style={{ objectFit: 'contain' }} />
+          </span>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: brand ? 13 : 12, fontWeight: 700, color: '#1c1e21', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+          {brand && <div style={{ fontSize: 11, color: '#8a8d91', marginTop: 1 }}>{brand.sub}</div>}
+        </div>
         <span style={{ fontSize: 10, color: '#8a8d91', flexShrink: 0 }}>{relativeTime(updatedAt)}</span>
       </div>
 

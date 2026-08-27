@@ -58,7 +58,7 @@ export function IndexView({
       <style>{`
         @keyframes sd-spin { to { transform: rotate(360deg); } }
         /* /demo grid: 5 per row desktop, 3 on medium, 2 on small. */
-        .sd-grid-demo { grid-template-columns: repeat(5, 1fr) !important; }
+        .sd-grid-demo { grid-template-columns: repeat(4, 1fr) !important; }
         @media (max-width: 1100px) { .sd-grid-demo { grid-template-columns: repeat(3, 1fr) !important; } }
         @media (max-width: 640px) { .sd-grid-demo { grid-template-columns: repeat(2, 1fr) !important; } }
         @media (max-width: 640px) {
@@ -194,6 +194,7 @@ export function IndexView({
                 title={d.title}
                 updatedAt={d.updatedAt}
                 tags={d.tags}
+                showBrand={isDemo}
                 onOpen={() => onOpen(d)}
                 onViewCode={() => onViewCode(d)}
                 onDelete={canAI ? () => onDeleteDiagram(d.id) : undefined}
