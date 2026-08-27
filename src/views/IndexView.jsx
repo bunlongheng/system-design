@@ -99,21 +99,34 @@ export function IndexView({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <img src="/icon.png" width={28} height={28} alt="" style={{ borderRadius: 8 }} />
             <span style={{ fontSize: 14, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em' }}>System Design</span>
+            {isDemo && <span style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', background: '#eaf2ff', borderRadius: 999, padding: '3px 9px' }}>Demos</span>}
           </div>
 
-          {/* Search */}
-          <div className="sd-search-wrap" style={{ position: 'relative', width: 260 }}>
-            <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8a8d91' }} width={13} height={13} viewBox="0 0 20 20" fill="none">
-              <circle cx={9} cy={9} r={6} stroke="currentColor" strokeWidth={1.8} />
-              <path d="M14 14l3 3" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" />
-            </svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
-              style={{ width: '100%', padding: '7px 14px 7px 32px', boxSizing: 'border-box', border: '1px solid #e4e6e8', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#1c1e21', background: '#f4f5f7' }} />
-          </div>
+          {/* Search - owner only, hidden on the public demo page */}
+          {!isDemo && (
+            <div className="sd-search-wrap" style={{ position: 'relative', width: 260 }}>
+              <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8a8d91' }} width={13} height={13} viewBox="0 0 20 20" fill="none">
+                <circle cx={9} cy={9} r={6} stroke="currentColor" strokeWidth={1.8} />
+                <path d="M14 14l3 3" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" />
+              </svg>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
+                style={{ width: '100%', padding: '7px 14px 7px 32px', boxSizing: 'border-box', border: '1px solid #e4e6e8', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#1c1e21', background: '#f4f5f7' }} />
+            </div>
+          )}
 
           <div style={{ flex: 1 }} />
 
-          {/* Avatar / Menu */}
+          {/* Public demo page: a portfolio link instead of the owner avatar. */}
+          {isDemo && (
+            <a href="https://bunlongheng.com" target="_blank" rel="noreferrer"
+              style={{ fontSize: 13, fontWeight: 600, color: '#64748b', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+              Built by Bunlong Heng
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg>
+            </a>
+          )}
+
+          {/* Avatar / Menu - owner only */}
+          {!isDemo && (
           <div ref={menuRef} style={{ position: 'relative' }}>
             <button onClick={() => setShowMenu(v => !v)}
               style={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', border: showMenu ? '2px solid #1c1e21' : '2px solid #e4e6e8', cursor: 'pointer', padding: 0, background: '#e4e6e8', transition: 'border-color 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -156,6 +169,7 @@ export function IndexView({
               </div>
             )}
           </div>
+          )}
         </div>
       </header>
 
