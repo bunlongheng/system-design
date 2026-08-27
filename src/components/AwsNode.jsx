@@ -20,10 +20,11 @@ export const AwsNode = memo(function AwsNode({ data }) {
       <Handle type="target" position={Position.Top}    style={{ opacity: 0, pointerEvents: 'none' }} />
       <Handle type="source" position={Position.Right}  style={{ opacity: 0, pointerEvents: 'none' }} />
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: 'none' }} />
-      {/* Logo only - no frame behind it */}
+      {/* Logo only - no frame, never an emoji. Every known service has an icon;
+          the letter fallback only guards against a bad id the gate should reject. */}
       {svc.icon
         ? <img src={svc.icon} alt={label} width={48} height={48} style={{ objectFit: 'contain', marginTop: 2 }} />
-        : <span style={{ fontSize: svc.emoji ? 36 : 26, fontWeight: 700, color, marginTop: 2, lineHeight: 1 }}>{svc.emoji || label[0]?.toUpperCase()}</span>
+        : <span style={{ fontSize: 26, fontWeight: 700, color, marginTop: 2, lineHeight: 1 }}>{label[0]?.toUpperCase()}</span>
       }
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', letterSpacing: '-0.1px', lineHeight: 1.3 }}>{label}</div>

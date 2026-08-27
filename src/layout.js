@@ -10,7 +10,13 @@ const NODE_H = 120
 // and edge styling are preserved - only each node's position changes.
 export function layoutElements(nodes, edges, { rankdir = 'LR' } = {}) {
   const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir, ranksep: 150, nodesep: 80, edgesep: 30, marginx: 40, marginy: 40 })
+  g.setGraph({
+    rankdir,
+    ranksep: 190, nodesep: 110, edgesep: 50, marginx: 40, marginy: 40,
+    ranker: 'network-simplex', // best rank assignment -> fewest long edges
+    acyclicer: 'greedy',       // break feedback loops cleanly so back-edges
+                               // don't route around and tangle the whole graph
+  })
   g.setDefaultEdgeLabel(() => ({}))
 
   nodes.forEach(n => g.setNode(n.id, { width: NODE_W, height: NODE_H }))
