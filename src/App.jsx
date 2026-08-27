@@ -81,6 +81,7 @@ export default function App() {
   const [showDetailCode, setShowDetailCode] = useState(false)
   const [detailCodeCopied, setDetailCodeCopied] = useState(false)
   const [showSharePanel, setShowSharePanel] = useState(false)
+  const [showDetailsPanel, setShowDetailsPanel] = useState(false)
   const [showSteps, setShowSteps] = useState(false)
   const [badgeMode, setBadgeMode] = useState('dark') // dark | silver | color | plain
   const [copiedLink, setCopiedLink] = useState(false)
@@ -122,6 +123,7 @@ export default function App() {
         const mapped = rows.map(r => ({
           id: r.id,
           title: r.title,
+          description: r.description || '',
           data: { nodes: r.nodes, edges: r.edges },
           updatedAt: r.created_at,
           tags: r.tags || [],
@@ -247,7 +249,7 @@ export default function App() {
     fetch(`/api/system-designs/${id}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(d => {
-        openDiagram({ id: d.id, title: d.title, data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] })
+        openDiagram({ id: d.id, title: d.title, description: d.description || '', data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] })
         setLoadingId(false)
       })
       .catch(() => {
@@ -454,6 +456,13 @@ export default function App() {
   const markers = buildMarkers(nodes, edges)
   const displayNodes = [...nodes, ...markers.nodes]
   const displayEdges = [...edges, ...markers.edges]
+  // Step-by-step walkthrough, derived from the diagram's edges in flow order.
+  const steps = (activeDiagram?.data?.edges || []).map((e, i) => ({
+    n: i + 1,
+    from: findService({ id: e.source })?.label || e.source,
+    to: findService({ id: e.target })?.label || e.target,
+    label: e.label || '',
+  }))
   return (
     <DetailView
       toast={toast} showToastMsg={showToastMsg}
@@ -461,6 +470,8 @@ export default function App() {
       showDetailCode={showDetailCode} setShowDetailCode={setShowDetailCode}
       rfInstance={rfInstance} flashZoomHud={flashZoomHud} zoomHudRef={zoomHudRef}
       showSharePanel={showSharePanel} setShowSharePanel={setShowSharePanel}
+      showDetailsPanel={showDetailsPanel} setShowDetailsPanel={setShowDetailsPanel}
+      steps={steps}
       showSteps={showSteps} setShowSteps={setShowSteps}
       badgeMode={badgeMode} setBadgeMode={setBadgeMode}
       activeDiagram={activeDiagram}
