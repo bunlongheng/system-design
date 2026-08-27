@@ -126,7 +126,7 @@ export function IndexView({
                 <button onClick={() => { setShowDocs(true); setShowMenu(false); }}
                   style={{ width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#1c1e21', fontFamily: 'inherit', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                  <span style={{ fontSize: 14 }}>📋</span> Import formats
+                  <span style={{ fontSize: 14 }}>＋</span> Create a diagram
                 </button>
                 {canAI && (
                   <button onClick={() => { openAIPrompt(); setShowMenu(false); }}
