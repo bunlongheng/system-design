@@ -29,10 +29,11 @@ function setup(overrides = {}) {
 }
 
 describe("DiagramCard", () => {
-  it("renders the title and a tag", () => {
+  it("renders the title and the node / edge counts", () => {
     setup();
     expect(screen.getByText("Netflix")).toBeInTheDocument();
-    expect(screen.getByText("aws")).toBeInTheDocument();
+    expect(screen.getByText("1 node")).toBeInTheDocument();
+    expect(screen.getByText("0 edges")).toBeInTheDocument();
   });
 
   it("calls onOpen when the card is clicked", async () => {

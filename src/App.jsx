@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { applyNodeChanges } from '@xyflow/react'
 import diagramData from './data/diagram.json'
 import SignInScreen from './components/SignInScreen'
 import { IndexView } from './views/IndexView'
 import { DetailView } from './views/DetailView'
+import { layoutElements } from './layout'
 
 // ─── Default data ─────────────────────────────────────────────────────────────
 
@@ -10,7 +12,7 @@ function decorateEdge({ color, animated, ...e }) {
   return {
     ...e, animated: animated ?? false,
     style: { stroke: color, strokeWidth: 1.8 },
-    labelStyle: { fill: '#374151', fontSize: 10, fontWeight: 600 },
+    labelStyle: { fill: '#374151', fontSize: 8, fontWeight: 600 },
     labelBgStyle: { fill: '#ffffff', fillOpacity: 1 },
     labelBgPadding: [4, 8], labelBgBorderRadius: 6,
   }
@@ -60,6 +62,7 @@ export default function App() {
   const aiInputRef = useRef(null)
   const zoomHudRef = useRef(null)
   const zoomHudTimer = useRef(null)
+  const lastZoomRef = useRef(null)
 
   useEffect(() => { if (showAIPrompt) aiInputRef.current?.focus() }, [showAIPrompt])
 
@@ -76,7 +79,7 @@ export default function App() {
   }, [showAIPrompt, showDocs])
 
   const loadDiagrams = useCallback(() => {
-    fetch('/api/system-designs')
+    return fetch('/api/system-designs')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(rows => {
         const mapped = rows.map(r => ({
@@ -172,15 +175,26 @@ export default function App() {
     setActiveDiagram(d)
     const n = d.data.nodes.map(nd => ({ ...nd, type: 'awsNode', data: { id: nd.id } }))
     const e = d.data.edges.map(decorateEdge)
-    setNodes(n)
+    setNodes(layoutElements(n, e)) // auto-layout so nothing overlaps
     setEdges(e)
     setView('detail')
     pendingFit.current = true
   }
 
+  // Let nodes be dragged around the canvas (positions live in React state).
+  const onNodesChange = useCallback(
+    changes => setNodes(nds => applyNodeChanges(changes, nds)),
+    [],
+  )
+
   useEffect(() => {
     if (pendingFit.current && rfInstance.current) {
-      setTimeout(() => rfInstance.current.fitView({ padding: 0.12, duration: 400 }), 60)
+      setTimeout(() => {
+        rfInstance.current.fitView({ padding: 0.15, duration: 400 })
+        // Record the fitted zoom as the baseline so the first PAN (same zoom)
+        // never flashes the HUD.
+        setTimeout(() => { lastZoomRef.current = rfInstance.current?.getZoom?.() ?? null }, 450)
+      }, 60)
       pendingFit.current = false
     }
   }, [nodes])
@@ -298,6 +312,7 @@ export default function App() {
         showDocs={showDocs} setShowDocs={setShowDocs}
         copiedLabel={copiedLabel} onCopyFormat={copyFormat}
         filtered={filtered}
+        onRefresh={loadDiagrams}
         onOpen={openDiagram}
         onViewCode={setCodeDiagram}
         onDeleteDiagram={deleteDiagram}
@@ -374,8 +389,13 @@ export default function App() {
   }
 
   // ── Zoom HUD ────────────────────────────────────────────────────────────────
+  // Only show on an actual zoom change - panning keeps the same zoom, so it
+  // must never flash the HUD.
   function flashZoomHud(z) {
     if (!zoomHudRef.current) return
+    const prev = lastZoomRef.current
+    lastZoomRef.current = z
+    if (prev !== null && Math.abs(z - prev) < 0.001) return // pan, not zoom
     zoomHudRef.current.textContent = `${Math.round(z * 100)}%`
     zoomHudRef.current.style.opacity = '1'
     if (zoomHudTimer.current) clearTimeout(zoomHudTimer.current)
@@ -394,7 +414,7 @@ export default function App() {
       showSharePanel={showSharePanel} setShowSharePanel={setShowSharePanel}
       activeDiagram={activeDiagram}
       detailCodeCopied={detailCodeCopied} setDetailCodeCopied={setDetailCodeCopied}
-      nodes={nodes} edges={edges}
+      nodes={nodes} edges={edges} onNodesChange={onNodesChange}
       exportPng={exportPng} exportCode={exportCode} exportJson={exportJson}
       copyLink={copyLink} copiedLink={copiedLink}
       shareAction={shareAction} copiedShare={copiedShare}

@@ -3,6 +3,7 @@ import { Toast } from '../components/Toast'
 import { DiagramCard } from '../components/DiagramCard'
 import { AIThinkingOverlay } from '../components/AIThinkingOverlay'
 import ImportFormatsModal from '../components/ImportFormatsModal'
+import { usePullToRefresh } from '../usePullToRefresh'
 
 const GITHUB_AVATAR = 'https://avatars.githubusercontent.com/u/11523064?v=4'
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
@@ -16,7 +17,7 @@ export function IndexView({
   showMenu, setShowMenu, menuRef,
   showDocs, setShowDocs,
   copiedLabel, onCopyFormat,
-  filtered,
+  filtered, onRefresh,
   onOpen, onViewCode, onDeleteDiagram,
   signOut,
   showAIPrompt, setShowAIPrompt,
@@ -25,6 +26,7 @@ export function IndexView({
 }) {
   const aiDialogRef = useRef(null)
   const aiPreviousFocusRef = useRef(null)
+  const { distance: pullDist, refreshing } = usePullToRefresh(onRefresh)
 
   function openAIPrompt() {
     aiPreviousFocusRef.current = document.activeElement
@@ -54,6 +56,7 @@ export function IndexView({
     <div style={{ minHeight: '100vh', background: '#f4f5f7', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       <Toast message={toast.message} visible={toast.visible} />
       <style>{`
+        @keyframes sd-spin { to { transform: rotate(360deg); } }
         @media (max-width: 640px) {
           .sd-header { padding: 0 16px !important; }
           .sd-search-wrap { flex: 1 !important; width: auto !important; }
@@ -62,6 +65,29 @@ export function IndexView({
           .sd-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; gap: 10px !important; }
         }
       `}</style>
+
+      {/* Pull-to-refresh spinner (iPad: drag down at the top of the list) */}
+      {(pullDist > 0 || refreshing) && (
+        <div style={{
+          position: 'fixed', top: 56, left: 0, right: 0, display: 'flex', justifyContent: 'center',
+          pointerEvents: 'none', zIndex: 9,
+          transform: `translateY(${Math.max(0, (refreshing ? 70 : pullDist) - 20)}px)`,
+          transition: refreshing || pullDist === 0 ? 'transform 0.2s ease' : 'none',
+        }}>
+          <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#ffffff', boxShadow: '0 2px 10px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#1c1e21" strokeWidth={2.4} strokeLinecap="round"
+              style={{
+                transformOrigin: '50% 50%',
+                animation: refreshing ? 'sd-spin 0.7s linear infinite' : 'none',
+                transform: refreshing ? 'none' : `rotate(${pullDist * 2.6}deg)`,
+                opacity: refreshing ? 1 : Math.min(1, pullDist / 70),
+              }}>
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <polyline points="21 3 21 9 15 9" />
+            </svg>
+          </div>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <header className="sd-header" style={{ background: '#ffffff', borderBottom: '1px solid #e4e6e8', height: 56, position: 'sticky', top: 0, zIndex: 10 }}>
