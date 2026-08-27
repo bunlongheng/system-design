@@ -15,6 +15,7 @@ export function DetailView({
   showDetailCode, setShowDetailCode,
   rfInstance: rfInstanceRef, flashZoomHud, zoomHudRef,
   showSharePanel, setShowSharePanel,
+  showSteps, setShowSteps,
   activeDiagram,
   detailCodeCopied, setDetailCodeCopied,
   nodes, edges, onNodesChange,
@@ -102,6 +103,27 @@ export function DetailView({
 
           <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
+          {/* Steps toggle */}
+          <button onClick={() => setShowSteps(v => !v)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+            background: showSteps ? '#f1f5f9' : 'transparent',
+            color: showSteps ? '#1e293b' : '#64748b',
+            cursor: 'pointer', fontSize: 13, fontWeight: showSteps ? 600 : 400,
+            transition: 'all 0.1s', fontFamily: 'inherit',
+          }}
+            onMouseEnter={e => { if (!showSteps) e.currentTarget.style.background = '#f1f5f9' }}
+            onMouseLeave={e => { if (!showSteps) e.currentTarget.style.background = 'transparent' }}
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/>
+              <path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>
+            </svg>
+            Steps
+          </button>
+
+          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+
           {/* Share toggle */}
           <button onClick={() => setShowSharePanel(v => !v)} style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -160,6 +182,7 @@ export function DetailView({
         {/* Canvas */}
         <div style={{ flex: 1, position: 'relative', background: '#e8ecf0' }}>
           <ReactFlow
+            className={showSteps ? 'sd-steps-on' : ''}
             nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
             onInit={inst => { rfInstanceRef.current = inst }}
@@ -255,6 +278,9 @@ export function DetailView({
       />
 
       <style>{`
+        /* Step number badges: hidden until the Steps toggle turns them on. */
+        .sd-step-badge { display: none; }
+        .sd-steps-on .sd-step-badge { display: flex; }
         /* On phones the fixed-width side panels would crush the canvas, so drop
            them to full-width bottom sheets over the canvas instead. */
         @media (max-width: 640px) {

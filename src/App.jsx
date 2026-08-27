@@ -22,7 +22,7 @@ function buildEdges(rawEdges) {
     label: e.label,
     type: 'gradient',
     animated: true,
-    data: { sourceColor: colorOf(e.source), targetColor: colorOf(e.target) },
+    data: { sourceColor: colorOf(e.source), targetColor: colorOf(e.target), step: i + 1 },
   }))
 }
 
@@ -54,6 +54,7 @@ export default function App() {
   const [showDetailCode, setShowDetailCode] = useState(false)
   const [detailCodeCopied, setDetailCodeCopied] = useState(false)
   const [showSharePanel, setShowSharePanel] = useState(false)
+  const [showSteps, setShowSteps] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedShare, setCopiedShare] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
@@ -421,6 +422,7 @@ export default function App() {
       showDetailCode={showDetailCode} setShowDetailCode={setShowDetailCode}
       rfInstance={rfInstance} flashZoomHud={flashZoomHud} zoomHudRef={zoomHudRef}
       showSharePanel={showSharePanel} setShowSharePanel={setShowSharePanel}
+      showSteps={showSteps} setShowSteps={setShowSteps}
       activeDiagram={activeDiagram}
       detailCodeCopied={detailCodeCopied} setDetailCodeCopied={setDetailCodeCopied}
       nodes={nodes} edges={edges} onNodesChange={onNodesChange}
