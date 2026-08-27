@@ -26,8 +26,32 @@ function buildEdges(rawEdges) {
   }))
 }
 
-const defaultNodes = diagramData.nodes.map(n => ({ ...n, type: 'awsNode', data: { id: n.id } }))
+// Start/end markers: a node with no incoming edge is an entry ("Start here"), a
+// node with no outgoing edge is a terminal ("Destination"). Rendered as separate
+// pill nodes arrowed into/out of those nodes, toggled from the header - never a
+// badge stuck on the node.
+function buildMarkers(nodes, edges) {
+  if (!nodes.length) return { nodes: [], edges: [] }
+  const hasIncoming = new Set(edges.map(e => e.target))
+  const hasOutgoing = new Set(edges.map(e => e.source))
+  const mNodes = []
+  for (const n of nodes) {
+    const p = n.position || { x: 0, y: 0 }
+    // Explicit width/height so React Flow renders the node immediately instead
+    // of hiding it (visibility:hidden) while it waits to measure a new node.
+    // +37 vertically centers the ~110px node against the 36px marker pill.
+    if (!hasIncoming.has(n.id)) {
+      mNodes.push({ id: `__start_${n.id}`, type: 'marker', position: { x: p.x - 200, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'start' }, draggable: false, selectable: false })
+    }
+    if (!hasOutgoing.has(n.id)) {
+      mNodes.push({ id: `__end_${n.id}`, type: 'marker', position: { x: p.x + 210, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'end' }, draggable: false, selectable: false })
+    }
+  }
+  return { nodes: mNodes, edges: [] }
+}
+
 const defaultEdges = buildEdges(diagramData.edges)
+const defaultNodes = diagramData.nodes.map(n => ({ ...n, type: 'awsNode', data: { id: n.id } }))
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -209,6 +233,7 @@ export default function App() {
       pendingFit.current = false
     }
   }, [nodes])
+
 
   // Load a saved design when the URL has ?id= (the URL the artifact API returns).
   useEffect(() => {
@@ -421,6 +446,10 @@ export default function App() {
   }
 
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────────
+  // Start/Destination marker nodes are always shown (auto-detected from edges).
+  const markers = buildMarkers(nodes, edges)
+  const displayNodes = [...nodes, ...markers.nodes]
+  const displayEdges = [...edges, ...markers.edges]
   return (
     <DetailView
       toast={toast} showToastMsg={showToastMsg}
@@ -432,7 +461,7 @@ export default function App() {
       badgeMode={badgeMode} setBadgeMode={setBadgeMode}
       activeDiagram={activeDiagram}
       detailCodeCopied={detailCodeCopied} setDetailCodeCopied={setDetailCodeCopied}
-      nodes={nodes} edges={edges} onNodesChange={onNodesChange}
+      nodes={displayNodes} edges={displayEdges} onNodesChange={onNodesChange}
       exportPng={exportPng} exportCode={exportCode} exportJson={exportJson}
       copyLink={copyLink} copiedLink={copiedLink}
       shareAction={shareAction} copiedShare={copiedShare}

@@ -1,16 +1,56 @@
-import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react'
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, Position } from '@xyflow/react'
+
+// ─── Floating edge geometry ─────────────────────────────────────────────────
+// Connect each edge at the point on the node border NEAREST the other node, so
+// edges always take the shortest, cleanest path instead of wrapping right-to-left.
+
+function getNodeIntersection(node, target) {
+  const { width: w, height: h } = node.measured
+  const pos = node.internals.positionAbsolute
+  const tpos = target.internals.positionAbsolute
+  const w2 = w / 2, h2 = h / 2
+  const x2 = pos.x + w2, y2 = pos.y + h2
+  const x1 = tpos.x + target.measured.width / 2
+  const y1 = tpos.y + target.measured.height / 2
+  const xx1 = (x1 - x2) / (2 * w2) - (y1 - y2) / (2 * h2)
+  const yy1 = (x1 - x2) / (2 * w2) + (y1 - y2) / (2 * h2)
+  const a = 1 / (Math.abs(xx1) + Math.abs(yy1) || 1)
+  const xx3 = a * xx1, yy3 = a * yy1
+  return { x: w2 * (xx3 + yy3) + x2, y: h2 * (-xx3 + yy3) + y2 }
+}
+
+function getEdgePosition(node, p) {
+  const x = node.internals.positionAbsolute.x
+  const y = node.internals.positionAbsolute.y
+  const { width: w, height: h } = node.measured
+  const px = Math.round(p.x), py = Math.round(p.y)
+  if (px <= Math.round(x) + 1) return Position.Left
+  if (px >= Math.round(x + w) - 1) return Position.Right
+  if (py <= Math.round(y) + 1) return Position.Top
+  if (py >= Math.round(y + h) - 1) return Position.Bottom
+  return Position.Top
+}
 
 // Edge whose line is a gradient from the SOURCE node's color to the TARGET
-// node's color. The label badge sits at the midpoint; its per-edge gradient is
-// exposed as CSS vars (--c1/--c2) so a wrapper class can switch the badge
-// between neutral-silver-with-gradient-border and full colorized fill without
-// rebuilding edges. The step number (when the Steps toggle is on) is a chip
-// attached inside that same badge.
+// node's color, connected at the nearest borders. The label badge sits at the
+// midpoint; the Steps chip is a chip inside that badge.
 export function GradientEdge({
-  id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, data, label,
+  id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, data, label,
 }) {
+  const sourceNode = useInternalNode(source)
+  const targetNode = useInternalNode(target)
+
+  let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY, sp = sourcePosition, tp = targetPosition
+  if (sourceNode?.measured?.width && targetNode?.measured?.width) {
+    const si = getNodeIntersection(sourceNode, targetNode)
+    const ti = getNodeIntersection(targetNode, sourceNode)
+    sx = si.x; sy = si.y; tx = ti.x; ty = ti.y
+    sp = getEdgePosition(sourceNode, si)
+    tp = getEdgePosition(targetNode, ti)
+  }
+
   const [path, labelX, labelY] = getBezierPath({
-    sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
+    sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition: sp, targetPosition: tp,
   })
   const c1 = data?.sourceColor || '#6b7280'
   const c2 = data?.targetColor || '#6b7280'
@@ -20,7 +60,7 @@ export function GradientEdge({
   return (
     <>
       <defs>
-        <linearGradient id={gid} gradientUnits="userSpaceOnUse" x1={sourceX} y1={sourceY} x2={targetX} y2={targetY}>
+        <linearGradient id={gid} gradientUnits="userSpaceOnUse" x1={sx} y1={sy} x2={tx} y2={ty}>
           <stop offset="0%" stopColor={c1} />
           <stop offset="100%" stopColor={c2} />
         </linearGradient>
