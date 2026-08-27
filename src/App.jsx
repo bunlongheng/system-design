@@ -5,21 +5,29 @@ import SignInScreen from './components/SignInScreen'
 import { IndexView } from './views/IndexView'
 import { DetailView } from './views/DetailView'
 import { layoutElements } from './layout'
+import { findService } from './services'
 
 // ─── Default data ─────────────────────────────────────────────────────────────
 
-function decorateEdge({ color, animated, ...e }) {
-  return {
-    ...e, animated: animated ?? false,
-    style: { stroke: color, strokeWidth: 1.8 },
-    labelStyle: { fill: '#374151', fontSize: 8, fontWeight: 600 },
-    labelBgStyle: { fill: '#ffffff', fillOpacity: 1 },
-    labelBgPadding: [4, 8], labelBgBorderRadius: 6,
-  }
+const colorOf = id => findService({ id })?.color || '#6b7280'
+
+// Every edge renders as a gradient (source color -> target color) and is
+// animated with marching motion. Node id === service key, so we can look up
+// each endpoint's brand color directly.
+function buildEdges(rawEdges) {
+  return rawEdges.map((e, i) => ({
+    id: e.id || `e${i}`,
+    source: e.source,
+    target: e.target,
+    label: e.label,
+    type: 'gradient',
+    animated: true,
+    data: { sourceColor: colorOf(e.source), targetColor: colorOf(e.target) },
+  }))
 }
 
 const defaultNodes = diagramData.nodes.map(n => ({ ...n, type: 'awsNode', data: { id: n.id } }))
-const defaultEdges = diagramData.edges.map(decorateEdge)
+const defaultEdges = buildEdges(diagramData.edges)
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -157,8 +165,9 @@ export default function App() {
   async function renderDiagram(text) {
     try {
       const { parseMermaid } = await import('./parseMermaid')
-      const { nodes: n, edges: e } = parseMermaid(text)
+      const { nodes: n, edges: rawE } = parseMermaid(text)
       if (!n.length) { showToastMsg('Nothing to render — check your syntax'); return null }
+      const e = buildEdges(rawE)
       setNodes(n)
       setEdges(e)
       pendingFit.current = true
@@ -174,7 +183,7 @@ export default function App() {
   function openDiagram(d) {
     setActiveDiagram(d)
     const n = d.data.nodes.map(nd => ({ ...nd, type: 'awsNode', data: { id: nd.id } }))
-    const e = d.data.edges.map(decorateEdge)
+    const e = buildEdges(d.data.edges)
     setNodes(layoutElements(n, e)) // auto-layout so nothing overlaps
     setEdges(e)
     setView('detail')
