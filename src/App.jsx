@@ -61,6 +61,9 @@ const SEED = [
 ]
 
 export default function App() {
+  // /demo is a PUBLIC read-only gallery (no sign-in): anyone sees is_public
+  // diagrams. The home page ("/") is unchanged - owner-only behind sign-in.
+  const isDemo = typeof window !== 'undefined' && window.location.pathname === '/demo'
   const [view, setView] = useState('index') // 'index' | 'detail'
   const [activeDiagram, setActiveDiagram] = useState(null)
   const [nodes, setNodes] = useState(defaultNodes)
@@ -83,15 +86,12 @@ export default function App() {
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedShare, setCopiedShare] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
-  const [diagrams, setDiagrams] = useState(SEED)
+  const [diagrams, setDiagrams] = useState(isDemo ? [] : SEED)
   const [loadingId, setLoadingId] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [devBypass, setDevBypass] = useState(false)
-  // /demo is a PUBLIC read-only gallery (no sign-in): anyone sees is_public
-  // diagrams. The home page ("/") is unchanged - owner-only behind sign-in.
-  const isDemo = typeof window !== 'undefined' && window.location.pathname === '/demo'
   const canAI = (Boolean(user) || import.meta.env.DEV) && !isDemo
   const rfInstance = useRef(null)
   const pendingFit = useRef(false)
@@ -126,9 +126,10 @@ export default function App() {
           updatedAt: r.created_at,
           tags: r.tags || [],
         }))
-        setDiagrams(mapped.length ? mapped : SEED)
+        // On /demo never show the IFTTT SEED sample - only real public demos.
+        setDiagrams(mapped.length ? mapped : (isDemo ? [] : SEED))
       })
-      .catch(() => setDiagrams(SEED))
+      .catch(() => setDiagrams(isDemo ? [] : SEED))
   }, [isDemo])
 
   useEffect(() => { loadDiagrams() }, [loadDiagrams])
@@ -346,7 +347,7 @@ export default function App() {
       <IndexView
         toast={toast} showToastMsg={showToastMsg}
         search={search} setSearch={setSearch}
-        user={user} canAI={canAI}
+        user={user} canAI={canAI} isDemo={isDemo}
         showMenu={showMenu} setShowMenu={setShowMenu} menuRef={menuRef}
         showDocs={showDocs} setShowDocs={setShowDocs}
         copiedLabel={copiedLabel} onCopyFormat={copyFormat}
