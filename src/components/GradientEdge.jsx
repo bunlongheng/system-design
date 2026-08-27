@@ -1,4 +1,4 @@
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, Position } from '@xyflow/react'
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, useReactFlow, Position } from '@xyflow/react'
 
 // ─── Floating edge geometry ─────────────────────────────────────────────────
 // Connect each edge at the point on the node border NEAREST the other node, so
@@ -39,6 +39,7 @@ export function GradientEdge({
 }) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
+  const { getNodes } = useReactFlow()
 
   let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY, sp = sourcePosition, tp = targetPosition
   if (sourceNode?.measured?.width && targetNode?.measured?.width) {
@@ -49,9 +50,23 @@ export function GradientEdge({
     tp = getEdgePosition(targetNode, ti)
   }
 
-  const [path, labelX, labelY] = getBezierPath({
+  const [path, labelX, labelYRaw] = getBezierPath({
     sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition: sp, targetPosition: tp,
   })
+  // If the label lands on top of a service node, lift it just above that node so
+  // the text never overlaps a box.
+  let labelY = labelYRaw
+  for (const n of getNodes()) {
+    if (n.type !== 'awsNode' || !n.measured) continue
+    const { x, y } = n.position
+    const w = n.measured.width, h = n.measured.height
+    if (labelX > x - 4 && labelX < x + w + 4 && labelYRaw > y - 4 && labelYRaw < y + h + 4) {
+      // Push out the NEAREST side (top or bottom) by the minimal amount so the
+      // label clears the node while staying as close to the edge as possible.
+      labelY = labelYRaw < y + h / 2 ? y - 12 : y + h + 12
+      break
+    }
+  }
   const c1 = data?.sourceColor || '#6b7280'
   const c2 = data?.targetColor || '#6b7280'
   const gid = `grad-${id}`
