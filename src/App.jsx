@@ -89,7 +89,10 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [devBypass, setDevBypass] = useState(false)
-  const canAI = Boolean(user) || import.meta.env.DEV
+  // /demo is a PUBLIC read-only gallery (no sign-in): anyone sees is_public
+  // diagrams. The home page ("/") is unchanged - owner-only behind sign-in.
+  const isDemo = typeof window !== 'undefined' && window.location.pathname === '/demo'
+  const canAI = (Boolean(user) || import.meta.env.DEV) && !isDemo
   const rfInstance = useRef(null)
   const pendingFit = useRef(false)
   const menuRef = useRef(null)
@@ -113,7 +116,7 @@ export default function App() {
   }, [showAIPrompt, showDocs])
 
   const loadDiagrams = useCallback(() => {
-    return fetch('/api/system-designs')
+    return fetch(isDemo ? '/api/system-designs/public' : '/api/system-designs')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(rows => {
         const mapped = rows.map(r => ({
@@ -126,7 +129,7 @@ export default function App() {
         setDiagrams(mapped.length ? mapped : SEED)
       })
       .catch(() => setDiagrams(SEED))
-  }, [])
+  }, [isDemo])
 
   useEffect(() => { loadDiagrams() }, [loadDiagrams])
 
@@ -332,7 +335,7 @@ export default function App() {
   // home/gallery requires sign-in. While the auth check is in flight, show the
   // animated graph splash so an authed owner never flashes the sign-in card.
   const hasIdParam = Boolean(new URLSearchParams(window.location.search).get('id'))
-  if (view === 'index' && !hasIdParam && !devBypass) {
+  if (view === 'index' && !hasIdParam && !devBypass && !isDemo) {
     if (!authChecked) return <SignInScreen loading />
     if (!user) return <SignInScreen devBypass={() => setDevBypass(true)} />
   }
