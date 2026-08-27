@@ -11,7 +11,7 @@ export const AwsNode = memo(function AwsNode({ data }) {
 
   return (
     <div style={{
-      background: `${color}14`, border: `1.5px solid ${color}`, borderRadius: 0,
+      background: `${color}14`, border: `1px solid ${color}`, borderRadius: 0,
       padding: '12px 16px', minWidth: 130, display: 'flex', flexDirection: 'column',
       alignItems: 'center', gap: 7, position: 'relative',
       boxShadow: '0 1px 3px rgba(0,0,0,0.10)',

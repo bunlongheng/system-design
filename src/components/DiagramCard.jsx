@@ -85,7 +85,7 @@ export function DiagramCard({ diagram, title, updatedAt, showBrand, onOpen, onVi
       {/* Header */}
       <div style={{ padding: '13px 14px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
         {brand && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 9, background: '#f4f5f7', border: '1px solid #e7e9ee', flexShrink: 0 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 6, background: '#ffffff', border: '1px solid #e7e9ee', flexShrink: 0 }}>
             <img src={brand.icon} alt="" width={19} height={19} style={{ objectFit: 'contain' }} />
           </span>
         )}

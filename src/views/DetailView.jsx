@@ -15,6 +15,8 @@ export function DetailView({
   showDetailCode, setShowDetailCode,
   rfInstance: rfInstanceRef, flashZoomHud, zoomHudRef,
   showSharePanel, setShowSharePanel,
+  showDetailsPanel, setShowDetailsPanel,
+  steps = [],
   showSteps, setShowSteps,
   badgeMode, setBadgeMode,
   activeDiagram,
@@ -100,6 +102,26 @@ export function DetailView({
               <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
             </svg>
             Fit
+          </button>
+
+          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+
+          {/* Details (goal + steps) panel toggle */}
+          <button onClick={() => setShowDetailsPanel(v => !v)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+            background: showDetailsPanel ? '#f1f5f9' : 'transparent',
+            color: showDetailsPanel ? '#1e293b' : '#64748b',
+            cursor: 'pointer', fontSize: 13, fontWeight: showDetailsPanel ? 600 : 400,
+            transition: 'all 0.1s', fontFamily: 'inherit',
+          }}
+            onMouseEnter={e => { if (!showDetailsPanel) e.currentTarget.style.background = '#f1f5f9' }}
+            onMouseLeave={e => { if (!showDetailsPanel) e.currentTarget.style.background = 'transparent' }}
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            Details
           </button>
 
           <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
@@ -231,6 +253,45 @@ export function DetailView({
 
         </div>
 
+        {/* Details panel (right side): goal + step-by-step walkthrough */}
+        {showDetailsPanel && (
+          <div className="sd-details-panel" style={{
+            width: 320, flexShrink: 0, background: '#ffffff', borderLeft: '1px solid #e2e8f0',
+            display: 'flex', flexDirection: 'column', overflowY: 'auto',
+            animation: 'sd-slide-right 0.2s ease-out',
+          }}>
+            <div style={{ padding: '18px 18px 6px' }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2129' }}>{activeDiagram?.title || 'Diagram'}</div>
+            </div>
+
+            {/* Goal */}
+            <div style={{ padding: '8px 18px 16px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 8 }}>Goal</div>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: '#334155', background: '#f8fafc', border: '1px solid #eef2f7', borderLeft: '3px solid #2563eb', borderRadius: 10, padding: '12px 14px' }}>
+                {activeDiagram?.description || 'No description yet for this diagram.'}
+              </div>
+            </div>
+
+            {/* Steps */}
+            {steps.length > 0 && (
+              <div style={{ padding: '0 18px 24px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 10 }}>Steps ({steps.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {steps.map(s => (
+                    <div key={s.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 999, background: '#1c1e21', color: '#fff', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{s.n}</span>
+                      <div style={{ fontSize: 12.5, lineHeight: 1.5, color: '#334155' }}>
+                        <span style={{ fontWeight: 700, color: '#1a2129' }}>{s.from} &rarr; {s.to}</span>
+                        {s.label && <span style={{ color: '#64748b' }}>{`  -  ${s.label}`}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Share panel (right side) */}
         {showSharePanel && (
           <div className="sd-share-panel" style={{
@@ -345,7 +406,7 @@ export function DetailView({
         /* On phones the fixed-width side panels would crush the canvas, so drop
            them to full-width bottom sheets over the canvas instead. */
         @media (max-width: 640px) {
-          .sd-code-panel, .sd-share-panel {
+          .sd-code-panel, .sd-share-panel, .sd-details-panel {
             position: absolute !important; left: 0 !important; right: 0 !important;
             bottom: 0 !important; top: auto !important; width: 100% !important;
             max-height: 60vh; z-index: 20; border: none !important;
