@@ -1,4 +1,5 @@
-import { PALETTE } from '../services'
+import { findService } from '../services'
+import { layoutElements } from '../layout'
 
 // ─── Minimap for cards ────────────────────────────────────────────────────────
 
@@ -7,12 +8,10 @@ export function DiagramMinimap({ diagram }) {
   // Some diagrams (created via the API without coordinates) have nodes with no
   // position. Fall back to a simple grid so a single such diagram can never
   // crash the whole gallery.
-  const nds = (diagram.nodes || []).map((nd, i) => ({
-    id: nd.id,
-    position: nd.position && typeof nd.position.x === 'number' && typeof nd.position.y === 'number'
-      ? nd.position
-      : { x: (i % 6) * 100, y: Math.floor(i / 6) * 100 },
-  }))
+  // Lay out with dagre so the card preview matches the real (detail) diagram,
+  // not the raw stored grid positions.
+  const rawNodes = (diagram.nodes || []).map(nd => ({ id: nd.id }))
+  const nds = rawNodes.length ? layoutElements(rawNodes, diagram.edges || []) : []
   const n = nds.length
   if (!n) return <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', background: '#ffffff', borderRadius: 8 }} />
 
@@ -32,16 +31,28 @@ export function DiagramMinimap({ diagram }) {
   const posMap = {}
   nds.forEach((nd, i) => { posMap[nd.id] = positions[i] })
 
+  const R = 11 // node tile half-size
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', background: '#ffffff', borderRadius: 8 }}>
       {diagram.edges.map((e, i) => {
         const fp = posMap[e.source], tp = posMap[e.target]
         if (!fp || !tp) return null
-        return <line key={`e${i}`} x1={fp[0]} y1={fp[1]} x2={tp[0]} y2={tp[1]} stroke="#d1d5db" strokeWidth={1.5} />
+        const color = findService({ id: e.source })?.color || '#cbd5e1'
+        return <line key={`e${i}`} x1={fp[0]} y1={fp[1]} x2={tp[0]} y2={tp[1]} stroke={color} strokeOpacity={0.5} strokeWidth={1.4} />
       })}
-      {positions.map(([x, y], i) => (
-        <rect key={`n${i}`} x={x - 14} y={y - 8} width={28} height={16} rx={4} fill={PALETTE[i % PALETTE.length]} />
-      ))}
+      {nds.map((nd, i) => {
+        const [x, y] = positions[i]
+        const svc = findService({ id: nd.id })
+        const color = svc.color || '#94a3b8'
+        return (
+          <g key={`n${i}`}>
+            <rect x={x - R} y={y - R} width={R * 2} height={R * 2} rx={5} fill="#ffffff" stroke={color} strokeWidth={1.3} />
+            {svc.icon
+              ? <image href={svc.icon} x={x - 7} y={y - 7} width={14} height={14} preserveAspectRatio="xMidYMid meet" />
+              : <circle cx={x} cy={y} r={4} fill={color} />}
+          </g>
+        )
+      })}
     </svg>
   )
 }
