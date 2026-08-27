@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import createSystemDesign from "./lib/handlers/create-system-design.js";
 import listSystemDesigns from "./lib/handlers/list-system-designs.js";
+import listPublicSystemDesigns from "./lib/handlers/list-public-system-designs.js";
 import generate from "./lib/handlers/generate.js";
 import health from "./lib/handlers/health.js";
 import systemDesignById from "./lib/handlers/system-design-by-id.js";
@@ -47,6 +48,7 @@ app.post("/api/ai/system-designs", withErrors(createSystemDesign));
 app.post("/api/ai/generate", withErrors(generate));
 app.get("/api/health", withErrors(health));
 app.get("/api/system-designs", withErrors(listSystemDesigns));
+app.get("/api/system-designs/public", withErrors(listPublicSystemDesigns));
 app.all("/api/system-designs/:id", withErrors(systemDesignById));
 
 // Static SPA + client-side routing fallback.
