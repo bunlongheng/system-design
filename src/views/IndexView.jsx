@@ -13,7 +13,7 @@ const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, textarea, sel
 export function IndexView({
   toast, showToastMsg,
   search, setSearch,
-  user, canAI,
+  user, canAI, isDemo,
   showMenu, setShowMenu, menuRef,
   showDocs, setShowDocs,
   copiedLabel, onCopyFormat,
@@ -57,6 +57,10 @@ export function IndexView({
       <Toast message={toast.message} visible={toast.visible} />
       <style>{`
         @keyframes sd-spin { to { transform: rotate(360deg); } }
+        /* /demo grid: 5 per row desktop, 3 on medium, 2 on small. */
+        .sd-grid-demo { grid-template-columns: repeat(5, 1fr) !important; }
+        @media (max-width: 1100px) { .sd-grid-demo { grid-template-columns: repeat(3, 1fr) !important; } }
+        @media (max-width: 640px) { .sd-grid-demo { grid-template-columns: repeat(2, 1fr) !important; } }
         @media (max-width: 640px) {
           .sd-header { padding: 0 16px !important; }
           .sd-search-wrap { flex: 1 !important; width: auto !important; }
@@ -168,7 +172,7 @@ export function IndexView({
         )}
 
         {filtered.length > 0 && (
-          <div className="sd-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+          <div className={`sd-grid${isDemo ? ' sd-grid-demo' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
             {filtered.map(d => (
               <DiagramCard
                 key={d.id}
