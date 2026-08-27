@@ -12,6 +12,9 @@ export function GradientEdge({
   const c1 = data?.sourceColor || '#6b7280'
   const c2 = data?.targetColor || '#6b7280'
   const gid = `grad-${id}`
+  // Step badge sits near the start of the edge so the numbers read in order.
+  const stepX = sourceX + (targetX - sourceX) * 0.2
+  const stepY = sourceY + (targetY - sourceY) * 0.2
 
   return (
     <>
@@ -35,6 +38,25 @@ export function GradientEdge({
             }}
           >
             {label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+      {data?.step != null && (
+        <EdgeLabelRenderer>
+          <div
+            className="sd-step-badge"
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${stepX}px, ${stepY}px)`,
+              width: 18, height: 18, borderRadius: 999,
+              background: '#1c1e21', color: '#ffffff',
+              fontSize: 10, fontWeight: 800, lineHeight: 1,
+              alignItems: 'center', justifyContent: 'center',
+              border: '2px solid #ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+              pointerEvents: 'none',
+            }}
+          >
+            {data.step}
           </div>
         </EdgeLabelRenderer>
       )}
