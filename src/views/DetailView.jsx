@@ -337,8 +337,8 @@ export function DetailView({
         .sd-step-chip { display: none; }
         .sd-steps-on .sd-step-chip {
           display: inline-flex; align-items: center; justify-content: center;
-          min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px;
-          font-size: 10px; font-weight: 800; background: #1c1e21; color: #fff;
+          min-width: 13px; height: 13px; padding: 0 3px; border-radius: 999px;
+          font-size: 9px; font-weight: 800; background: #1c1e21; color: #fff;
         }
         /* On a dark badge the dark chip would vanish - flip it. */
         .sd-badge-dark .sd-step-chip { background: #fff; color: #1c1e21; }
