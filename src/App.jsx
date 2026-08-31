@@ -323,6 +323,18 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [view, canAI, activeDiagram, nodes, doSave, loadDiagrams, showToastMsg])
 
+  // Auto-arrange: re-run dagre on the current nodes (start on the left, spread out,
+  // steps ordered top-to-bottom, labels clear of nodes), fit-zoom, and persist for
+  // the owner so the tidy layout sticks.
+  const autoArrange = useCallback(() => {
+    setNodes(nds => {
+      const arranged = layoutElements(nds.filter(n => n.type === 'awsNode'), edges)
+      if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, arranged)
+      return arranged
+    })
+    setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
+  }, [edges, canAI, activeDiagram, savePositions])
+
   // Let nodes be dragged around the canvas (positions live in React state, and
   // are saved to the DB on drag-end when the owner can edit).
   const onNodesChange = useCallback(
@@ -593,6 +605,7 @@ export default function App() {
       copiedLabel={copiedLabel} onCopyFormat={copyFormat}
       isPublic={isDemo || !user}
       saveState={saveState}
+      onArrange={autoArrange}
     />
   )
 }

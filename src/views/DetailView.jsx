@@ -28,6 +28,7 @@ export function DetailView({
   showToastMsg,
   isPublic,
   saveState = 'idle',
+  onArrange,
 }) {
   const brand = brandFor(activeDiagram?.title)
   return (
@@ -123,6 +124,23 @@ export function DetailView({
               <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
             </svg>
             Fit
+          </button>
+
+          {/* Auto-arrange: re-lay-out left-to-right, spread out, step-ordered, then fit */}
+          <button onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+            background: 'transparent', color: '#64748b',
+            cursor: 'pointer', fontSize: 13, fontWeight: 400,
+            transition: 'all 0.1s', fontFamily: 'inherit',
+          }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4M17.5 10v4M6.5 10v7.5H10"/>
+            </svg>
+            Arrange
           </button>
 
           <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
