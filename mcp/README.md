@@ -49,7 +49,7 @@ so the `@modelcontextprotocol/sdk` dependency is present.
 is discovered automatically when you run Claude Code here. Or add it anywhere:
 
 ```bash
-claude mcp add system-design -- node /Users/bheng/Sites/system-design/mcp/server.mjs
+claude mcp add system-design -- node /absolute/path/to/system-design/mcp/server.mjs
 ```
 
 **Claude Desktop:** add to `claude_desktop_config.json`:
@@ -59,7 +59,7 @@ claude mcp add system-design -- node /Users/bheng/Sites/system-design/mcp/server
   "mcpServers": {
     "system-design": {
       "command": "node",
-      "args": ["/Users/bheng/Sites/system-design/mcp/server.mjs"]
+      "args": ["/absolute/path/to/system-design/mcp/server.mjs"]
     }
   }
 }

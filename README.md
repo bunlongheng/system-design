@@ -128,7 +128,12 @@ curl -X POST https://system-design-bheng.vercel.app/api/ai/system-designs \
 
 - **Auth:** `Bearer $SYSTEM_DESIGNS_API_SECRET` (constant-time compare). A bad/missing token returns `401`.
 - **Body:** `title` (string, required), `nodes` (non-empty `[{ id, position }]`, required), `edges` (`[{ source, target, label?, animated? }]`), `type` (`"system-design"` only). Bad input returns `400` with a `sample_request`.
-- Each node `id` must be a known service key (e.g. `cloudfront`, `lambda`, `dynamo`, `s3`, `kinesis`, `sagemaker`, `waf`, `cognito`) so its AWS/GCP icon resolves.
+- Each node either uses a **known service key** (e.g. `cloudfront`, `lambda`, `dynamo`, `s3`, `sagemaker`, plus SaaS/tool brands like `hubspot`, `cyclr`, `fastapi`, `mailchimp`), **or brings its own icon** so any brand can appear:
+  ```json
+  { "id": "acme", "label": "Acme CRM", "sub": "CRM", "color": "#7c3aed",
+    "icon": "https://cdn.example.com/acme.svg" }
+  ```
+  `icon` accepts a **remote https URL** (fetched once and inlined as a `data:` URI so the diagram stays self-contained), a `data:image/...` URI, or a same-origin `/path`. Remote fetches are guarded (https-only, no redirects, `image/*` only, <=24KB, 5s timeout).
 - **Rate limit:** 60 requests/min per IP; excess returns `429` with a `Retry-After` header.
 
 ### Internal / admin-only (NOT public)
