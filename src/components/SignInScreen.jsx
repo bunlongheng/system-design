@@ -113,9 +113,15 @@ export default function SignInScreen({ devBypass, loading }) {
           Owner access only. AI generation stays private.
         </p>
 
+        {/* Public demo gallery - browse without an account, matching the diagrams app. */}
+        <a href="/demo"
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 16, fontSize: 13.5, fontWeight: 600, color: "#7c3aed", textDecoration: "none" }}>
+          View live demo &rarr;
+        </a>
+
         {import.meta.env.DEV && (
           <button onClick={devBypass}
-            style={{ marginTop: 14, background: "none", border: "none", color: "#6366f1", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            style={{ display: "block", margin: "12px auto 0", background: "none", border: "none", color: "#6366f1", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             Continue without signing in (dev)
           </button>
         )}

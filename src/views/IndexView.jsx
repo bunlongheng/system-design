@@ -4,6 +4,7 @@ import { DiagramCard } from '../components/DiagramCard'
 import { AIThinkingOverlay } from '../components/AIThinkingOverlay'
 import ImportFormatsModal from '../components/ImportFormatsModal'
 import { usePullToRefresh } from '../usePullToRefresh'
+import { Footer } from '../components/Footer'
 
 const GITHUB_AVATAR = 'https://avatars.githubusercontent.com/u/11523064?v=4'
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
@@ -53,20 +54,20 @@ export function IndexView({
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f5f7', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f5f7', fontFamily: 'Inter, system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column' }}>
       <Toast message={toast.message} visible={toast.visible} />
       <style>{`
         @keyframes sd-spin { to { transform: rotate(360deg); } }
-        /* /demo grid: 5 per row desktop, 3 on medium, 2 on small. */
+        /* One gallery grid for BOTH the owner index and /demo, so they look the
+           same: 4 desktop, 3 on laptop, 2 on iPad portrait + phone. */
         .sd-grid-demo { grid-template-columns: repeat(4, 1fr) !important; }
-        @media (max-width: 1100px) { .sd-grid-demo { grid-template-columns: repeat(3, 1fr) !important; } }
-        @media (max-width: 640px) { .sd-grid-demo { grid-template-columns: repeat(2, 1fr) !important; } }
+        @media (max-width: 1280px) { .sd-grid-demo { grid-template-columns: repeat(3, 1fr) !important; } }
+        @media (max-width: 1024px) { .sd-grid-demo { grid-template-columns: repeat(2, 1fr) !important; } }
         @media (max-width: 640px) {
           .sd-header { padding: 0 16px !important; }
           .sd-search-wrap { flex: 1 !important; width: auto !important; }
           .sd-search-wrap input { width: 100% !important; }
           .sd-main { padding: 20px 16px 100px !important; }
-          .sd-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; gap: 10px !important; }
         }
       `}</style>
 
@@ -116,14 +117,6 @@ export function IndexView({
 
           <div style={{ flex: 1 }} />
 
-          {/* Public demo page: a portfolio link instead of the owner avatar. */}
-          {isDemo && (
-            <a href="https://bunlongheng.com" target="_blank" rel="noreferrer"
-              style={{ fontSize: 13, fontWeight: 600, color: '#64748b', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-              Built by Bunlong Heng
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg>
-            </a>
-          )}
 
           {/* Avatar / Menu - owner only */}
           {!isDemo && (
@@ -174,7 +167,7 @@ export function IndexView({
       </header>
 
       {/* ── Content ── */}
-      <main className="sd-main" style={{ padding: '32px 32px 100px', maxWidth: 1600, margin: '0 auto' }}>
+      <main className="sd-main" style={{ padding: isDemo ? '16px 32px 60px' : '32px 32px 100px', maxWidth: 1600, margin: '0 auto', width: '100%', boxSizing: 'border-box', flex: 1 }}>
         {filtered.length === 0 && (
           <div style={{ position: 'fixed', inset: 0, top: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', background: '#f4f5f7' }}>
             <div style={{ width: 48, height: 48, borderRadius: 12, background: '#e4e6e8', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
@@ -186,7 +179,7 @@ export function IndexView({
         )}
 
         {filtered.length > 0 && (
-          <div className={`sd-grid${isDemo ? ' sd-grid-demo' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+          <div className="sd-grid sd-grid-demo" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
             {filtered.map(d => (
               <DiagramCard
                 key={d.id}
@@ -194,7 +187,8 @@ export function IndexView({
                 title={d.title}
                 updatedAt={d.updatedAt}
                 tags={d.tags}
-                showBrand={isDemo}
+                showBrand
+                difficulty={d.difficulty}
                 onOpen={() => onOpen(d)}
                 onViewCode={() => onViewCode(d)}
                 onDelete={canAI ? () => onDeleteDiagram(d.id) : undefined}
@@ -203,6 +197,9 @@ export function IndexView({
           </div>
         )}
       </main>
+
+      {/* Public footer - demo landing only, pinned so it's always visible */}
+      {isDemo && <Footer fixed />}
 
       {/* ── FAB ── */}
       {canAI && (

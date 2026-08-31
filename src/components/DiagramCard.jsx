@@ -1,26 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
 import { relativeTime } from '../timeAgo'
 import { DiagramMinimap } from './DiagramMinimap'
-
-// Real-world brand per demo (logo + one-line subtitle). Keyed by the clean title.
-const BRANDS = {
-  stripe: { icon: '/brand/stripe.svg', sub: 'Payments' },
-  twitter: { icon: '/brand/twitter.svg', sub: 'News Feed' },
-  netflix: { icon: '/brand/netflix.svg', sub: 'Video Streaming' },
-  youtube: { icon: '/brand/youtube.svg', sub: 'Video Streaming' },
-  uber: { icon: '/brand/uber.svg', sub: 'Realtime Matching' },
-  slack: { icon: '/brand/slack.svg', sub: 'Realtime Chat' },
-  dropbox: { icon: '/brand/dropbox.svg', sub: 'File Sync' },
-  bitly: { icon: '/brand/bitly.svg', sub: 'URL Shortener' },
-  'llm inference': { icon: '/brand/anthropic.svg', sub: 'AI Inference' },
-  'rate limiter': { icon: '/brand/cloudflare.svg', sub: 'Rate Limiting' },
-}
-const brandFor = title => BRANDS[String(title || '').trim().toLowerCase()] || null
+import { brandFor } from '../brands'
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export function DiagramCard({ diagram, title, updatedAt, showBrand, onOpen, onViewCode, onDelete }) {
+// Map the 1-12 difficulty rank to a tier chip (label + colors).
+function tierFor(d) {
+  if (d == null) return null
+  if (d <= 2) return { label: 'Easy', fg: '#15803d', bg: '#f0fdf4', bd: '#dcfce7' }
+  if (d <= 5) return { label: 'Medium', fg: '#b45309', bg: '#fffbeb', bd: '#fef3c7' }
+  if (d <= 8) return { label: 'Hard', fg: '#c2410c', bg: '#fff7ed', bd: '#ffedd5' }
+  return { label: 'Expert', fg: '#b91c1c', bg: '#fef2f2', bd: '#fee2e2' }
+}
+
+export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, onOpen, onViewCode, onDelete }) {
   const brand = showBrand ? brandFor(title) : null
+  const tier = tierFor(difficulty)
   const [active, setActive] = useState(false) // hover OR keyboard focus (for the card's own lift)
   const [confirming, setConfirming] = useState(false) // delete: awaiting the confirm click
   const confirmTimer = useRef(null)
@@ -83,17 +79,17 @@ export function DiagramCard({ diagram, title, updatedAt, showBrand, onOpen, onVi
       />
 
       {/* Header */}
-      <div style={{ padding: '13px 14px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ padding: '13px 14px 8px', display: 'flex', alignItems: 'flex-start', gap: 11 }}>
         {brand && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 6, background: '#ffffff', border: '1px solid #e7e9ee', flexShrink: 0 }}>
-            <img src={brand.icon} alt="" width={19} height={19} style={{ objectFit: 'contain' }} />
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: '#ffffff', border: '1px solid #e7e9ee', flexShrink: 0 }}>
+            <img src={brand.icon} alt="" width={28} height={28} style={{ objectFit: 'contain', display: 'block' }} />
           </span>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: brand ? 13 : 12, fontWeight: 700, color: '#1c1e21', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
-          {brand && <div style={{ fontSize: 11, color: '#8a8d91', marginTop: 1 }}>{brand.sub}</div>}
+          {brand && <div style={{ fontSize: 11, color: '#8a8d91', marginTop: 2 }}>{brand.sub}</div>}
         </div>
-        <span style={{ fontSize: 10, color: '#8a8d91', flexShrink: 0 }}>{relativeTime(updatedAt)}</span>
+        <span style={{ fontSize: 10, color: '#8a8d91', flexShrink: 0, alignSelf: 'flex-start', marginTop: 1 }}>{relativeTime(updatedAt)}</span>
       </div>
 
       {/* Node / edge counts */}
@@ -104,6 +100,11 @@ export function DiagramCard({ diagram, title, updatedAt, showBrand, onOpen, onVi
         <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 20, background: '#eef2f7', color: '#64748b', border: '1px solid #e3e8ee', letterSpacing: '0.01em', lineHeight: 1.5 }}>
           {diagram.edges.length} {diagram.edges.length === 1 ? 'edge' : 'edges'}
         </span>
+        {tier && (
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: tier.bg, color: tier.fg, border: `1px solid ${tier.bd}`, letterSpacing: '0.01em', lineHeight: 1.5 }}>
+            {tier.label}
+          </span>
+        )}
       </div>
 
       {/* Minimap */}

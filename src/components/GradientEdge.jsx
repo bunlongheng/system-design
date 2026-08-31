@@ -39,7 +39,7 @@ export function GradientEdge({
 }) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
-  const { getNodes } = useReactFlow()
+  const { getNodes, getEdges } = useReactFlow()
 
   let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY, sp = sourcePosition, tp = targetPosition
   if (sourceNode?.measured?.width && targetNode?.measured?.width) {
@@ -50,9 +50,42 @@ export function GradientEdge({
     tp = getEdgePosition(targetNode, ti)
   }
 
-  const [path, labelX, labelYRaw] = getBezierPath({
-    sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition: sp, targetPosition: tp,
-  })
+  // Parallel edges between the same node pair (e.g. a request + its response loop)
+  // otherwise share identical geometry, so their lines AND labels stack. Fan them
+  // out: each sibling gets a perpendicular offset (bent line + shifted label).
+  const pairKey = [source, target].slice().sort().join('|')
+  const siblings = getEdges().filter(e => [e.source, e.target].slice().sort().join('|') === pairKey)
+  const parallel = siblings.length > 1
+
+  let path, labelX, labelYRaw
+  if (parallel) {
+    const n = siblings.length
+    const idx = siblings.slice().sort((a, b) => (a.id < b.id ? -1 : 1)).findIndex(e => e.id === id)
+    const centered = idx - (n - 1) / 2 // 0-centered rank: -1, 0, +1 ...
+    const dx = tx - sx, dy = ty - sy
+    const L = Math.hypot(dx, dy) || 1
+    // Canonical perpendicular (same vector for both directions) so siblings split
+    // to opposite sides instead of collapsing onto each other.
+    const flip = source < target ? 1 : -1
+    const px = (-dy / L) * flip, py = (dx / L) * flip
+    const mx = (sx + tx) / 2, my = (sy + ty) / 2
+    // Bow each sibling out into a big arc so a request+response reads as a clear
+    // loop, not two cramped near-parallel lines. Bend scales with edge length
+    // (capped) so short and long loops both look round.
+    const bow = centered * Math.min(150, Math.max(70, L * 0.32))
+    const cx = mx + px * bow, cy = my + py * bow
+    path = `M${sx},${sy} Q${cx},${cy} ${tx},${ty}`
+    // Stagger each sibling's label to a DIFFERENT point along its curve so the
+    // labels spread out along the arc instead of stacking on one line.
+    const t = Math.min(0.72, Math.max(0.28, 0.5 + centered * 0.16))
+    const mt = 1 - t
+    labelX = mt * mt * sx + 2 * mt * t * cx + t * t * tx
+    labelYRaw = mt * mt * sy + 2 * mt * t * cy + t * t * ty
+  } else {
+    ;[path, labelX, labelYRaw] = getBezierPath({
+      sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition: sp, targetPosition: tp,
+    })
+  }
   // If the label lands on top of a service node, lift it just above that node so
   // the text never overlaps a box.
   let labelY = labelYRaw

@@ -46,6 +46,7 @@ export const SERVICES = {
   spark:        { label: 'Apache Spark',    sub: 'Batch Processing',      color: '#f97316', icon: '/icons/gen-spark.svg' },
   ml:           { label: 'ML Platform',     sub: 'Recommendations',       icon: '/icons/sagemaker.png',   color: '#0aab91' },
   sagemaker:    { label: 'SageMaker',       sub: 'ML Training',           icon: '/icons/sagemaker.png',   color: '#0aab91' },
+  claude:       { label: 'Claude',          sub: 'LLM',                   icon: '/icons/claude.svg',      color: '#D97757' },
   elasticsearch:{ label: 'Elasticsearch',  sub: 'Logs & Search',         icon: '/icons/opensearch.png',  color: '#8f54ff' },
   opensearch:   { label: 'OpenSearch',      sub: 'Search & Analytics',    icon: '/icons/opensearch.png',  color: '#8f54ff' },
   atlas:        { label: 'Atlas',          sub: 'Monitoring',             color: '#ec4899', icon: '/icons/gen-atlas.svg' },
@@ -103,6 +104,22 @@ export const SERVICES = {
   cloudlogging: { label: 'Cloud Logging',  sub: 'Log Management',         icon: '/icons/gcp-cloud-logging.svg',  color: '#3580ef' },
   cloudmonitoring:{ label: 'Cloud Monitoring',sub: 'Metrics & Alerts',    icon: '/icons/gcp-cloud-monitoring.svg',color: '#337fee' },
   gcpgateway:   { label: 'API Gateway',    sub: 'GCP API Gateway',        icon: '/icons/gcp-api-gateway.svg',    color: '#3480ee' },
+
+  // ─── SaaS / tools / integration platforms (non-cloud brands) ────────────────
+  python:       { label: 'Python',         sub: 'Runtime',                icon: '/brand/python.svg',        color: '#3776AB' },
+  fastapi:      { label: 'FastAPI',        sub: 'API Framework',          icon: '/brand/fastapi.svg',       color: '#05998B' },
+  hubspot:      { label: 'HubSpot',        sub: 'CRM',                    icon: '/brand/hubspot.svg',       color: '#FF7A59' },
+  mailchimp:    { label: 'Mailchimp',      sub: 'Email Marketing',        icon: '/brand/mailchimp.svg',     color: '#FFB800' },
+  jotform:      { label: 'Jotform',        sub: 'Forms',                  icon: '/brand/jotform.svg',       color: '#FF6100' },
+  googlecontacts:{ label: 'Google Contacts',sub: 'Contacts',             icon: '/brand/googlecontacts.svg', color: '#1A73E8' },
+  cyclr:        { label: 'Cyclr',          sub: 'Embedded iPaaS',         icon: '/brand/cyclr.svg',         color: '#E5202E' },
+  jobber:       { label: 'Jobber',         sub: 'Field Service CRM',      icon: '/brand/jobber.svg',        color: '#1F5C4A' },
+  housecallpro: { label: 'Housecall Pro',  sub: 'Field Service CRM',      icon: '/brand/housecallpro.svg',  color: '#1877F2' },
+  integry:      { label: 'Integry',        sub: 'Embedded Integrations',  icon: '/brand/integry.svg',       color: '#2E5E4E' },
+  thryv:        { label: 'Thryv',          sub: 'Marketing Center',       icon: '/brand/thryv.svg',         color: '#5B2B82' },
+  thryvbc:      { label: 'Thryv',          sub: 'Business Center',        icon: '/brand/thryv-bc.svg',      color: '#1A1A1A' },
+  gcp:          { label: 'Google Cloud',   sub: 'GCP',                    icon: '/brand/gcp.svg',           color: '#4285F4' },
+  alloydb:      { label: 'AlloyDB AI',     sub: 'Managed Postgres',       icon: '/brand/alloydb.svg',       color: '#4285F4' },
 }
 
 export const PALETTE = ["#ef4444","#f97316","#eab308","#22c55e","#14b8a6","#06b6d4","#3b82f6","#8b5cf6","#ec4899","#f43f5e","#84cc16","#0891b2"]
@@ -125,6 +142,12 @@ export function tagColor(tag) {
 }
 
 export function findService(data) {
+  // Bring-your-own-icon: a node may carry its own brand (icon + label/color/sub),
+  // so ANY service - not just the built-in AWS catalog - can render. The icon is a
+  // same-origin path ("/brand/foo.svg") or a data:image URI (CSP allows both).
+  if (data && typeof data.icon === 'string' && data.icon) {
+    return { icon: data.icon, label: data.label || data.id, color: data.color || '#6b7280', sub: data.sub }
+  }
   const lbl = (data.label || '').toLowerCase()
   const id  = (data.id  || '').toLowerCase()
   const byId = SERVICES[data.id]
