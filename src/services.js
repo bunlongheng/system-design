@@ -34,7 +34,7 @@ export const SERVICES = {
   redis:        { label: 'Redis',             sub: 'Cache / Session',     icon: '/icons/redis-2026.svg',  color: '#FF4438' },
   memcached:    { label: 'Memcached',         sub: 'EVCache',             icon: '/icons/elasticache.png', color: '#cb2cd2' },
   elasticache:  { label: 'ElastiCache',       sub: 'Cache Layer',         icon: '/icons/elasticache.png', color: '#cb2cd2' },
-  s3:           { label: 'S3',               sub: 'Object Storage',       icon: '/icons/aws-s3.svg',      color: '#688724' },
+  s3:           { label: 'S3',               sub: 'Object Storage',       icon: '/icons/s3.svg',          color: '#688724' },
   storage:      { label: 'Storage',          sub: 'Object Store',         color: '#16a34a', icon: '/icons/gen-storage.svg' },
   kafka:        { label: 'Kafka',            sub: 'Event Streaming',      icon: '/icons/kafka.png',       color: '#8f54ff' },
   msk:          { label: 'MSK',             sub: 'Managed Kafka',         icon: '/icons/kafka.png',       color: '#8f54ff' },

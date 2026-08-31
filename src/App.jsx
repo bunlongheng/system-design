@@ -258,7 +258,15 @@ export default function App() {
   const [saveState, setSaveState] = useState('idle')
   const doSave = useCallback((diagramId, nds, notify = false) => {
     const payload = nds.filter(n => n.type === 'awsNode' && n.position)
-      .map(n => ({ id: n.id, position: { x: Math.round(n.position.x), y: Math.round(n.position.y) } }))
+      .map(n => ({
+        id: n.id,
+        position: { x: Math.round(n.position.x), y: Math.round(n.position.y) },
+        // Preserve bring-your-own-icon fields so saving the layout never strips them.
+        ...(n.icon ? { icon: n.icon } : {}),
+        ...(n.label ? { label: n.label } : {}),
+        ...(n.color ? { color: n.color } : {}),
+        ...(n.sub ? { sub: n.sub } : {}),
+      }))
     if (!payload.length) return
     setSaveState('saving')
     fetch(`/api/system-designs/${diagramId}`, {
