@@ -30,6 +30,7 @@ export const SERVICES = {
   postgres:     { label: 'PostgreSQL',        sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#ca2bd2' },
   mysql:        { label: 'MySQL',             sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#ca2bd2' },
   rds:          { label: 'RDS',               sub: 'Relational DB',       icon: '/icons/rds.png',         color: '#ca2bd2' },
+  aurora:       { label: 'Aurora',            sub: 'Relational DB',       icon: '/icons/aurora.svg',      color: '#2E5FE8' },
   mongodb:      { label: 'MongoDB',           sub: 'Document DB',         icon: '/icons/mongodb.svg',  color: '#22c55e' },
   redis:        { label: 'Redis',             sub: 'Cache / Session',     icon: '/icons/redis-2026.svg',  color: '#FF4438' },
   memcached:    { label: 'Memcached',         sub: 'EVCache',             icon: '/icons/elasticache.png', color: '#cb2cd2' },
