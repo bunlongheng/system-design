@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "gen:icons": "node scripts/gen-icon-manifest.mjs",
+    "prebuild": "node scripts/gen-icon-manifest.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
