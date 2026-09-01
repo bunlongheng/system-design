@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <g fill="#C9714E">
+    <g><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(30 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(60 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(90 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(120 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(150 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(180 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(210 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(240 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(270 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(300 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+    <g transform="rotate(330 100 100)"><path d="M100 96 Q110 52 100 14 Q90 52 100 96 Z"/></g>
+  </g>
+</svg>

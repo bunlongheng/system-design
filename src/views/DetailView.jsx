@@ -1,11 +1,12 @@
 import { ReactFlow, Background } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import diagramData from '../data/diagram.json'
-import { tagColor } from '../services'
 import ImportFormatsModal from '../components/ImportFormatsModal'
 import { nodeTypes } from '../components/AwsNode'
 import { edgeTypes } from '../components/GradientEdge'
 import { Toast } from '../components/Toast'
+import { Footer } from '../components/Footer'
+import { brandFor } from '../brands'
 
 // ─── Detail (canvas) view ───────────────────────────────────────────────────
 
@@ -25,15 +26,21 @@ export function DetailView({
   exportPng, exportCode, exportJson, copyLink, copiedLink, shareAction, copiedShare, copyCode, copiedCode,
   showDocs, setShowDocs, copiedLabel, onCopyFormat,
   showToastMsg,
+  isPublic,
+  saveState = 'idle',
+  onArrange,
 }) {
+  const brand = brandFor(activeDiagram?.title)
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       <Toast message={toast.message} visible={toast.visible} />
 
-      {/* Header — diagrams-style floating pill toolbar */}
+      {/* Header — diagrams-style floating pill toolbar. Scrolls horizontally on
+          narrow screens so every action stays reachable instead of clipping. */}
       <header style={{
-        height: 54, background: 'linear-gradient(180deg, #e9ebee 0%, #d3d7dc 100%)', borderBottom: '1px solid #c2c6cc',
+        height: 54, background: 'linear-gradient(180deg, #fbfbfc 0%, #eef0f3 100%)', borderBottom: '1px solid #e4e7ea',
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0,
+        overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch',
       }}>
         {/* Back button */}
         <button onClick={() => { setView('index'); setShowDetailCode(false); }}
@@ -54,10 +61,25 @@ export function DetailView({
           </svg>
         </button>
 
-        {/* Diagram name */}
+        {/* Diagram name (with brand logo, matching the card) */}
+        {brand && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, background: '#ffffff', border: '1px solid #e7e9ee', flexShrink: 0 }}>
+            <img src={brand.icon} alt="" width={15} height={15} style={{ objectFit: 'contain' }} />
+          </span>
+        )}
         <span style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
           {activeDiagram?.title || 'Untitled diagram'}
         </span>
+
+        {/* Layout save indicator: spinner while saving, green check when saved. */}
+        {saveState === 'saving' && (
+          <span className="sd-save-spin" title="Saving layout..." style={{ flexShrink: 0, width: 16, height: 16, borderRadius: '50%', border: '2px solid #cbd5e1', borderTopColor: '#1c1e21', display: 'inline-block' }} />
+        )}
+        {saveState === 'saved' && (
+          <span className="sd-save-check" title="Layout saved" style={{ flexShrink: 0, width: 17, height: 17, borderRadius: '50%', background: '#16a34a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          </span>
+        )}
 
         <div style={{ flex: 1 }} />
 
@@ -102,6 +124,23 @@ export function DetailView({
               <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
             </svg>
             Fit
+          </button>
+
+          {/* Auto-arrange: re-lay-out left-to-right, spread out, step-ordered, then fit */}
+          <button onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+            background: 'transparent', color: '#64748b',
+            cursor: 'pointer', fontSize: 13, fontWeight: 400,
+            transition: 'all 0.1s', fontFamily: 'inherit',
+          }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4M17.5 10v4M6.5 10v7.5H10"/>
+            </svg>
+            Arrange
           </button>
 
           <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
@@ -241,6 +280,29 @@ export function DetailView({
             <Background variant="dots" gap={24} size={1} color="#e6e8eb" />
           </ReactFlow>
 
+          {/* Info card overlay - title + what it tests + goal, pinned top-left of the canvas */}
+          {(activeDiagram?.pattern || activeDiagram?.description) && (
+            <div className="sd-info-card" style={{
+              position: 'absolute', top: 16, left: 16, maxWidth: 340, zIndex: 40,
+              background: '#ffffff', color: '#1a2129', borderRadius: 0,
+              padding: '14px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+              border: '1px solid #e4e6e8',
+            }}>
+              {activeDiagram?.pattern && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9aa0a6', marginBottom: 3 }}>What it tests</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.45, color: '#1a1a1a' }}>{activeDiagram.pattern}</div>
+                </div>
+              )}
+              {activeDiagram?.description && (
+                <div>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9aa0a6', marginBottom: 3 }}>Goal</div>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#444' }}>{activeDiagram.description}</div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Zoom HUD */}
           <div ref={zoomHudRef} style={{
             position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)',
@@ -264,10 +326,20 @@ export function DetailView({
               <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2129' }}>{activeDiagram?.title || 'Diagram'}</div>
             </div>
 
+            {/* Pattern - the one-line "what this really tests" (fan-out, idempotency, ...) */}
+            {activeDiagram?.pattern && (
+              <div style={{ padding: '4px 18px 6px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9aa0a6', marginBottom: 6 }}>What it tests</div>
+                <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5, color: '#1a1a1a' }}>
+                  {activeDiagram.pattern}
+                </div>
+              </div>
+            )}
+
             {/* Goal */}
-            <div style={{ padding: '8px 18px 16px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 8 }}>Goal</div>
-              <div style={{ fontSize: 13, lineHeight: 1.6, color: '#334155', background: '#f8fafc', border: '1px solid #eef2f7', borderLeft: '3px solid #2563eb', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ padding: '10px 18px 16px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9aa0a6', marginBottom: 6 }}>Goal</div>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: '#444' }}>
                 {activeDiagram?.description || 'No description yet for this diagram.'}
               </div>
             </div>
@@ -334,25 +406,12 @@ export function DetailView({
                 onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
               >{copiedCode ? 'Copied!' : 'Copy'}</button>
             </div>
-
-            {/* Diagram info */}
-            <div style={{ marginTop: 24, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 10 }}>Diagram Info</div>
-            <div style={{ background: '#ffffff', borderRadius: 10, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>{activeDiagram?.title || 'IFTTT System Design'}</div>
-              <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
-                {nodes.length} nodes · {edges.length} edges
-              </div>
-              {activeDiagram?.tags?.length > 0 && (
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
-                  {activeDiagram.tags.map(t => { const s = tagColor(t); return (
-                    <span key={t} style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: s.bg, color: s.text, border: `1px solid ${s.border}` }}>{t}</span>
-                  ); })}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>
+
+      {/* Public footer - only on a demoed (public) diagram, never owner views */}
+      {isPublic && <Footer />}
 
       {/* Import Formats modal (shared) */}
       <ImportFormatsModal
@@ -363,15 +422,25 @@ export function DetailView({
       />
 
       <style>{`
+        /* Layout save indicator next to the title. */
+        @keyframes sd-save-rot { to { transform: rotate(360deg); } }
+        .sd-save-spin { animation: sd-save-rot 0.7s linear infinite; }
+        @keyframes sd-save-pop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+        .sd-save-check { animation: sd-save-pop 0.28s ease-out; }
         /* Start/End connector arrow: same thickness + marching flow as edges. */
         @keyframes sd-marker-dash { to { stroke-dashoffset: -18; } }
         .sd-marker-line { stroke-dasharray: 5 4; animation: sd-marker-dash 0.5s linear infinite; }
+        /* Phone: shrink the info card so it doesn't swallow the canvas, and cap
+           its height with an internal scroll. */
+        @media (max-width: 640px) {
+          .sd-info-card { top: 10px !important; left: 10px !important; right: 10px !important; max-width: none !important; padding: 10px 12px !important; max-height: 34vh !important; overflow-y: auto !important; }
+        }
         /* Edge label badge - shared layout; per-edge gradient comes from
            --c1/--c2 set inline. Appearance switches by wrapper mode class. */
         .sd-edge-badge {
-          position: absolute; display: flex; align-items: center; gap: 5px;
-          padding: 3px 9px; border-radius: 999px;
-          font-size: 10px; font-weight: 700; line-height: 1.4;
+          position: absolute; display: flex; align-items: center; gap: 4px;
+          padding: 2px 7px; border-radius: 999px;
+          font-size: 8.5px; font-weight: 700; line-height: 1.35;
           letter-spacing: 0.01em; white-space: nowrap; pointer-events: none;
         }
         /* 1) Silver fill + gradient border, dark text (default) */

@@ -15,6 +15,7 @@ import db from '../lib/db.js'
 import { uniqueSystemDesignSlug } from '../lib/slugs.js'
 import { ownerId } from '../lib/auth-owner.js'
 import { SERVICES } from '../src/services.js'
+import { resolveNodeIcons } from '../lib/resolve-icon.js'
 
 const APP_URL = process.env.SYSTEM_DESIGNS_APP_URL || 'https://system-design-bheng.vercel.app'
 const urlFor = id => `${APP_URL}/?id=${id}`
@@ -32,6 +33,11 @@ function toStoredNodes(nodes) {
   return nodes.map((n, i) => ({
     id: n.id,
     position: { x: n.x ?? 120 + (i % 6) * 220, y: n.y ?? 120 + Math.floor(i / 6) * 160 },
+    // Optional bring-your-own-icon: caller supplies the logo, we just render it.
+    ...(n.icon ? { icon: n.icon } : {}),
+    ...(n.label ? { label: n.label } : {}),
+    ...(n.color ? { color: n.color } : {}),
+    ...(n.sub ? { sub: n.sub } : {}),
   }))
 }
 function toStoredEdges(edges) {
@@ -42,13 +48,15 @@ function toStoredEdges(edges) {
     ...(e.label ? { label: e.label } : {}),
   }))
 }
-const unknownServices = nodes => [...new Set(nodes.map(n => n.id).filter(id => !SERVICES[id]?.icon))]
-// HARD GATE: refuse nodes that have no logo (unknown service key). Returns an
-// error result to send back, or null if every node is a real service.
+// A node resolves to a logo if it's a known catalog service OR it carries a custom
+// icon (a remote https URL, a data:image URI, or a same-origin /path).
+const okCustomIcon = ic => typeof ic === 'string' && (ic.startsWith('/') || ic.startsWith('https://') || /^data:image\//.test(ic))
+const unresolvedNodes = nodes => [...new Set(nodes.filter(n => !SERVICES[n.id]?.icon && !okCustomIcon(n.icon)).map(n => n.id))]
+// HARD GATE: refuse nodes with no logo. Returns an error result, or null if OK.
 const logoGate = nodes => {
-  const missing = unknownServices(nodes)
+  const missing = unresolvedNodes(nodes)
   return missing.length
-    ? fail(`Rejected: every node must use a known service that has a logo. No logo for: ${missing.join(', ')}. Call list_services for valid keys, then pick real services.`)
+    ? fail(`Rejected: every node must render a real logo - use a known catalog service id (call list_services), OR give the node a custom "icon" (a remote https URL, a data:image URI, or a /path) plus a "label". Unresolved: ${missing.join(', ')}.`)
     : null
 }
 
@@ -102,13 +110,17 @@ server.registerTool(
   'create_system_design',
   {
     title: 'Create system design',
-    description: "Create a new diagram. Provide a title, nodes (each id must be a known service key - call list_services), and edges connecting node ids. Positions are optional (the app auto-layouts). Returns the new id and URL.",
+    description: "Create a new diagram. Provide a title, nodes, and edges connecting node ids. Each node is EITHER a known catalog service (call list_services), OR a bring-your-own node with a custom `icon` (a remote https logo URL, a data:image URI, or a /path) plus a `label`. Remote https icons are fetched and inlined once so the diagram stays self-contained. Positions are optional (the app auto-layouts). Returns the new id and URL.",
     inputSchema: {
       title: z.string().describe('Descriptive title, e.g. "URL Shortener - Tier 1"'),
       nodes: z.array(z.object({
-        id: z.string().describe('A known service key, e.g. "user","apigw","lambda","ses","dynamo"'),
+        id: z.string().describe('A known service key (e.g. "lambda","dynamo","cyclr","hubspot"), or any unique id when bringing your own icon'),
         x: z.number().optional(),
         y: z.number().optional(),
+        icon: z.string().optional().describe('Bring-your-own logo: a remote https image URL, a data:image URI, or a same-origin /path. Omit for catalog services.'),
+        label: z.string().optional().describe('Display name (required with a custom icon), e.g. "HubSpot"'),
+        sub: z.string().optional().describe('Small subtitle under the label, e.g. "CRM"'),
+        color: z.string().optional().describe('Brand hex color for the node border/tint, e.g. "#FF7A59"'),
       })).min(1).describe('The services in the diagram'),
       edges: z.array(z.object({
         source: z.string().describe('source node id'),
@@ -121,9 +133,11 @@ server.registerTool(
     try {
       const gate = logoGate(nodes)
       if (gate) return gate
+      const { nodes: iconNodes, failed } = await resolveNodeIcons(nodes)
+      if (failed.length) return fail(`Could not fetch the remote icon for node(s): ${failed.join(', ')}. Use an https image URL that returns image/* under 24KB (no redirects), or inline a data:image URI.`)
       const o = owner()
       const slug = await uniqueSystemDesignSlug(o, title)
-      const storedNodes = toStoredNodes(nodes)
+      const storedNodes = toStoredNodes(iconNodes)
       const storedEdges = toStoredEdges(edges)
       const { rows } = await db.query(
         'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[]) RETURNING id',
@@ -144,13 +158,23 @@ server.registerTool(
     inputSchema: {
       id: z.string().describe('The diagram id to update'),
       title: z.string().optional(),
-      nodes: z.array(z.object({ id: z.string(), x: z.number().optional(), y: z.number().optional() })).optional(),
+      nodes: z.array(z.object({
+        id: z.string(), x: z.number().optional(), y: z.number().optional(),
+        icon: z.string().optional().describe('Bring-your-own logo: https URL, data:image URI, or /path'),
+        label: z.string().optional(), sub: z.string().optional(), color: z.string().optional(),
+      })).optional(),
       edges: z.array(z.object({ source: z.string(), target: z.string(), label: z.string().optional() })).optional(),
     },
   },
   async ({ id, title, nodes, edges }) => {
     try {
-      if (nodes) { const gate = logoGate(nodes); if (gate) return gate }
+      let iconNodes = nodes
+      if (nodes) {
+        const gate = logoGate(nodes); if (gate) return gate
+        const r = await resolveNodeIcons(nodes)
+        if (r.failed.length) return fail(`Could not fetch the remote icon for node(s): ${r.failed.join(', ')}.`)
+        iconNodes = r.nodes
+      }
       const { rows } = await db.query(
         `UPDATE system_designs SET
            title = COALESCE($2, title),
@@ -160,7 +184,7 @@ server.registerTool(
         [
           id,
           title?.trim() ?? null,
-          nodes ? JSON.stringify(toStoredNodes(nodes)) : null,
+          iconNodes ? JSON.stringify(toStoredNodes(iconNodes)) : null,
           edges ? JSON.stringify(toStoredEdges(edges)) : null,
           owner(),
         ],

@@ -10,7 +10,10 @@ export function DiagramMinimap({ diagram }) {
   // crash the whole gallery.
   // Lay out with dagre so the card preview matches the real (detail) diagram,
   // not the raw stored grid positions.
-  const rawNodes = (diagram.nodes || []).map(nd => ({ id: nd.id }))
+  // Keep each node's custom brand fields (icon/label/color/sub) so bring-your-own
+  // logos show in the preview too, not just catalog services.
+  const rawNodes = (diagram.nodes || []).map(nd => ({ id: nd.id, icon: nd.icon, label: nd.label, color: nd.color, sub: nd.sub }))
+  const byNodeId = Object.fromEntries(rawNodes.map(nd => [nd.id, nd]))
   const nds = rawNodes.length ? layoutElements(rawNodes, diagram.edges || []) : []
   const n = nds.length
   if (!n) return <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', background: '#ffffff', borderRadius: 8 }} />
@@ -23,33 +26,48 @@ export function DiagramMinimap({ diagram }) {
   const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1
   const pad = 20
 
+  // Uniform scale (same factor on both axes) + center. Scaling X and Y
+  // independently distorted dagre's spacing and jammed dense diagrams (Claude
+  // Code, Zapier) into overlapping tiles; a single scale preserves the real
+  // layout so nodes keep their breathing room.
+  const scale = Math.min((W - pad * 2) / rangeX, (H - pad * 2) / rangeY)
+  const offX = (W - rangeX * scale) / 2, offY = (H - rangeY * scale) / 2
   const positions = nds.map(nd => ([
-    pad + ((nd.position.x - minX) / rangeX) * (W - pad * 2),
-    pad + ((nd.position.y - minY) / rangeY) * (H - pad * 2),
+    offX + (nd.position.x - minX) * scale,
+    offY + (nd.position.y - minY) * scale,
   ]))
 
   const posMap = {}
   nds.forEach((nd, i) => { posMap[nd.id] = positions[i] })
 
-  const R = 11 // node tile half-size
+  // Size the tile to the tightest gap so tiles never overlap, even when a
+  // diagram is dense; sparse diagrams still get the full-size tile.
+  let minD = Infinity
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      minD = Math.min(minD, Math.hypot(positions[i][0] - positions[j][0], positions[i][1] - positions[j][1]))
+    }
+  }
+  const R = Math.max(4.5, Math.min(11, minD / 2 - 1)) // node tile half-size
+  const ic = R * 1.35 // icon size
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', background: '#ffffff', borderRadius: 8 }}>
       {diagram.edges.map((e, i) => {
         const fp = posMap[e.source], tp = posMap[e.target]
         if (!fp || !tp) return null
-        const color = findService({ id: e.source })?.color || '#cbd5e1'
+        const color = findService(byNodeId[e.source] || { id: e.source })?.color || '#cbd5e1'
         return <line key={`e${i}`} x1={fp[0]} y1={fp[1]} x2={tp[0]} y2={tp[1]} stroke={color} strokeOpacity={0.5} strokeWidth={1.4} />
       })}
       {nds.map((nd, i) => {
         const [x, y] = positions[i]
-        const svc = findService({ id: nd.id })
+        const svc = findService(byNodeId[nd.id] || { id: nd.id })
         const color = svc.color || '#94a3b8'
         return (
           <g key={`n${i}`}>
-            <rect x={x - R} y={y - R} width={R * 2} height={R * 2} rx={5} fill="#ffffff" stroke={color} strokeWidth={1.3} />
+            <rect x={x - R} y={y - R} width={R * 2} height={R * 2} fill="#ffffff" stroke={color} strokeWidth={0.7} />
             {svc.icon
-              ? <image href={svc.icon} x={x - 7} y={y - 7} width={14} height={14} preserveAspectRatio="xMidYMid meet" />
-              : <circle cx={x} cy={y} r={4} fill={color} />}
+              ? <image href={svc.icon} x={x - ic / 2} y={y - ic / 2} width={ic} height={ic} preserveAspectRatio="xMidYMid meet" />
+              : <circle cx={x} cy={y} r={R * 0.4} fill={color} />}
           </g>
         )
       })}

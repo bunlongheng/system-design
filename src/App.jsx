@@ -26,26 +26,44 @@ function buildEdges(rawEdges) {
   }))
 }
 
-// Start/end markers: a node with no incoming edge is an entry ("Start here"), a
-// node with no outgoing edge is a terminal ("Destination"). Rendered as separate
-// pill nodes arrowed into/out of those nodes, toggled from the header - never a
-// badge stuck on the node.
+// Datastores that can be the "source of truth", most-authoritative first: primary
+// DBs, then object storage, then cache/search. The single "Destination" marker
+// lands on the highest-priority one present - never a queue, cache-as-endpoint, or
+// a plain leaf service.
+const SOURCE_OF_TRUTH = [
+  'dynamo', 'dynamodb', 'rds', 'postgres', 'mysql', 'aurora', 'spanner', 'cockroach',
+  'cassandra', 'keyspaces', 'mongodb', 'bigtable',
+  's3', 'storage',
+  'redis', 'elasticache', 'memcached', 'opensearch', 'elasticsearch',
+]
+
+// Exactly ONE "Start here" and ONE "Destination" per diagram - never more, never
+// both on the same node. Start = the source of step 1 (the first action, robust
+// even for closed loops). Destination = the top-priority datastore (source of
+// truth where data lives). Rendered as separate pill nodes, toggled from header.
 function buildMarkers(nodes, edges) {
   if (!nodes.length) return { nodes: [], edges: [] }
+  const byId = id => nodes.find(n => n.id === id)
   const hasIncoming = new Set(edges.map(e => e.target))
-  const hasOutgoing = new Set(edges.map(e => e.source))
+
+  // Start: source of the first edge; else any node with no incoming edge; else node 0.
+  let startId = edges[0] && edges[0].source && byId(edges[0].source) ? edges[0].source : null
+  if (!startId) startId = (nodes.find(n => !hasIncoming.has(n.id)) || nodes[0]).id
+
+  // Destination: single top-priority datastore, but never the Start node.
+  let endId = SOURCE_OF_TRUTH.find(id => byId(id) && id !== startId) || null
+
   const mNodes = []
-  for (const n of nodes) {
-    const p = n.position || { x: 0, y: 0 }
-    // Explicit width/height so React Flow renders the node immediately instead
-    // of hiding it (visibility:hidden) while it waits to measure a new node.
+  const s = byId(startId)
+  if (s) {
+    const p = s.position || { x: 0, y: 0 }
     // +37 vertically centers the ~110px node against the 36px marker pill.
-    if (!hasIncoming.has(n.id)) {
-      mNodes.push({ id: `__start_${n.id}`, type: 'marker', position: { x: p.x - 200, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'start' }, draggable: false, selectable: false })
-    }
-    if (!hasOutgoing.has(n.id)) {
-      mNodes.push({ id: `__end_${n.id}`, type: 'marker', position: { x: p.x + 210, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'end' }, draggable: false, selectable: false })
-    }
+    mNodes.push({ id: `__start_${startId}`, type: 'marker', position: { x: p.x - 200, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'start' }, draggable: false, selectable: false })
+  }
+  const e = endId && byId(endId)
+  if (e) {
+    const p = e.position || { x: 0, y: 0 }
+    mNodes.push({ id: `__end_${endId}`, type: 'marker', position: { x: p.x + 210, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'end' }, draggable: false, selectable: false })
   }
   return { nodes: mNodes, edges: [] }
 }
@@ -69,6 +87,12 @@ export default function App() {
   const [nodes, setNodes] = useState(defaultNodes)
   const [edges, setEdges] = useState(defaultEdges)
   const [toast, setToast] = useState({ message: '', visible: false })
+  // Declared before the effects/callbacks that depend on it - a const useCallback
+  // is not hoisted, so referencing it earlier would be a temporal-dead-zone crash.
+  const showToastMsg = useCallback(msg => {
+    setToast({ message: msg, visible: true })
+    setTimeout(() => setToast(t => ({ ...t, visible: false })), 2500)
+  }, [])
   const [search, setSearch] = useState('')
   const [showDocs, setShowDocs] = useState(false)
   const [copiedLabel, setCopiedLabel] = useState(null)
@@ -124,6 +148,8 @@ export default function App() {
           id: r.id,
           title: r.title,
           description: r.description || '',
+          pattern: r.pattern || '',
+          difficulty: r.difficulty ?? null,
           data: { nodes: r.nodes, edges: r.edges },
           updatedAt: r.created_at,
           tags: r.tags || [],
@@ -143,7 +169,7 @@ export default function App() {
     if (p === 'denied') showToastMsg('That Google account is not authorized')
     else if (p === 'error') showToastMsg('Sign-in failed, try again')
     if (p) { const u = new URL(window.location.href); u.searchParams.delete('auth'); window.history.replaceState({}, '', u) }
-  }, [])
+  }, [showToastMsg])
 
   function signOut() {
     fetch('/api/auth/logout', { method: 'POST' }).then(() => { setUser(null); showToastMsg('Signed out') }).catch(() => showToastMsg('Sign out failed'))
@@ -189,10 +215,6 @@ export default function App() {
     }
   }
 
-  function showToastMsg(msg) {
-    setToast({ message: msg, visible: true })
-    setTimeout(() => setToast(t => ({ ...t, visible: false })), 2500)
-  }
 
   async function renderDiagram(text) {
     try {
@@ -214,18 +236,116 @@ export default function App() {
 
   function openDiagram(d) {
     setActiveDiagram(d)
-    const n = d.data.nodes.map(nd => ({ ...nd, type: 'awsNode', data: { id: nd.id } }))
+    const raw = d.data.nodes || []
+    // Use the owner's saved layout when every node has a stored position;
+    // otherwise auto-layout with dagre so nothing overlaps.
+    const hasSaved = raw.length > 0 && raw.every(nd => nd.position && Number.isFinite(nd.position.x) && Number.isFinite(nd.position.y))
+    // Carry any custom brand fields (label/icon/color/sub) into node data so a
+    // bring-your-own-icon node renders its own logo, not a catalog lookup.
+    const n = raw.map(nd => ({ ...nd, type: 'awsNode', data: { id: nd.id, label: nd.label, icon: nd.icon, color: nd.color, sub: nd.sub }, ...(hasSaved ? { position: nd.position } : {}) }))
     const e = buildEdges(d.data.edges)
-    setNodes(layoutElements(n, e)) // auto-layout so nothing overlaps
+    setNodes(hasSaved ? n : layoutElements(n, e))
     setEdges(e)
     setView('detail')
     pendingFit.current = true
   }
 
-  // Let nodes be dragged around the canvas (positions live in React state).
+  // Persist the canvas layout (owner only) a beat after a drag ends, so a
+  // rearranged diagram stays put on reopen instead of resetting to auto-layout.
+  // saveState drives the little spinner/check next to the title: idle|saving|saved.
+  const saveTimer = useRef(null)
+  const savedResetTimer = useRef(null)
+  const [saveState, setSaveState] = useState('idle')
+  const doSave = useCallback((diagramId, nds, notify = false) => {
+    const payload = nds.filter(n => n.type === 'awsNode' && n.position)
+      .map(n => ({
+        id: n.id,
+        position: { x: Math.round(n.position.x), y: Math.round(n.position.y) },
+        // Preserve bring-your-own-icon fields so saving the layout never strips them.
+        ...(n.icon ? { icon: n.icon } : {}),
+        ...(n.label ? { label: n.label } : {}),
+        ...(n.color ? { color: n.color } : {}),
+        ...(n.sub ? { sub: n.sub } : {}),
+      }))
+    if (!payload.length) return
+    setSaveState('saving')
+    fetch(`/api/system-designs/${diagramId}`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodes: payload }),
+    })
+      .then(r => {
+        setSaveState(r.ok ? 'saved' : 'idle')
+        if (r.ok) {
+          // Sync the in-memory gallery copy so reopening the card (without a
+          // refetch) shows the saved layout instead of the stale pre-drag one.
+          const posById = Object.fromEntries(payload.map(p => [p.id, p.position]))
+          setDiagrams(ds => ds.map(d => d.id !== diagramId ? d : {
+            ...d,
+            data: { ...d.data, nodes: d.data.nodes.map(nd => posById[nd.id] ? { ...nd, position: posById[nd.id] } : nd) },
+          }))
+        }
+        if (notify) showToastMsg(r.ok ? 'Layout saved' : 'Could not save (owner only)')
+      })
+      .catch(() => { setSaveState('idle'); if (notify) showToastMsg('Could not save') })
+      .finally(() => {
+        if (savedResetTimer.current) clearTimeout(savedResetTimer.current)
+        savedResetTimer.current = setTimeout(() => setSaveState('idle'), 1800)
+      })
+  }, [showToastMsg])
+  const savePositions = useCallback((diagramId, nds) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => doSave(diagramId, nds), 600)
+  }, [doSave])
+
+  // Keyboard shortcuts: Cmd/Ctrl+S saves the current layout immediately (owner,
+  // on the detail canvas); Cmd/Ctrl+R re-fetches diagrams in-app (pull-to-refresh)
+  // instead of a full browser reload. Both block the browser default.
+  useEffect(() => {
+    const onKey = e => {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && (e.key === 's' || e.key === 'S')) {
+        // Always block the browser's "save page as .html" dialog; then save the
+        // current layout (with a toast). The backend authorizes owner-only, so a
+        // non-owner just gets a "could not save" note.
+        e.preventDefault()
+        if (view === 'detail' && activeDiagram?.id) {
+          if (saveTimer.current) clearTimeout(saveTimer.current)
+          doSave(activeDiagram.id, nodes, true)
+        }
+      } else if (mod && (e.key === 'r' || e.key === 'R')) {
+        e.preventDefault()
+        loadDiagrams()
+        showToastMsg('Refreshed')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view, canAI, activeDiagram, nodes, doSave, loadDiagrams, showToastMsg])
+
+  // Auto-arrange: re-run dagre on the current nodes (start on the left, spread out,
+  // steps ordered top-to-bottom, labels clear of nodes), fit-zoom, and persist for
+  // the owner so the tidy layout sticks.
+  const autoArrange = useCallback(() => {
+    setNodes(nds => {
+      const arranged = layoutElements(nds.filter(n => n.type === 'awsNode'), edges)
+      if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, arranged)
+      return arranged
+    })
+    setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
+  }, [edges, canAI, activeDiagram, savePositions])
+
+  // Let nodes be dragged around the canvas (positions live in React state, and
+  // are saved to the DB on drag-end when the owner can edit).
   const onNodesChange = useCallback(
-    changes => setNodes(nds => applyNodeChanges(changes, nds)),
-    [],
+    changes => setNodes(nds => {
+      const next = applyNodeChanges(changes, nds)
+      if (canAI && activeDiagram?.id && changes.some(c => c.type === 'position' && c.dragging === false)) {
+        savePositions(activeDiagram.id, next)
+      }
+      return next
+    }),
+    [canAI, activeDiagram, savePositions],
   )
 
   useEffect(() => {
@@ -483,6 +603,9 @@ export default function App() {
       copyCode={copyCode} copiedCode={copiedCode}
       showDocs={showDocs} setShowDocs={setShowDocs}
       copiedLabel={copiedLabel} onCopyFormat={copyFormat}
+      isPublic={isDemo || !user}
+      saveState={saveState}
+      onArrange={autoArrange}
     />
   )
 }

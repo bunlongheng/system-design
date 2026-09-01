@@ -33,6 +33,13 @@ test("the /?id= URL renders the design in the browser", async ({ page, baseURL }
   const { url } = await create.json();
   const id = url.split("/?id=")[1];
 
+  // New diagrams are private by default; publish it so the browser (no auth) can
+  // load and render it.
+  await api.patch(`/api/system-designs/${id}`, {
+    headers: { Cookie: OWNER_COOKIE, "Content-Type": "application/json" },
+    data: { is_public: true },
+  });
+
   try {
     await page.goto(`/?id=${id}`);
     // React Flow paints .react-flow__node once the design loads.
