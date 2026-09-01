@@ -66,6 +66,14 @@ test("public round-trip: create -> 201 {url} -> GET renders -> DELETE", async ({
   expect(url).toContain("/?id=");
   const id = url.split("/?id=")[1];
 
+  // New diagrams are private by default; publish it so the unauthenticated read
+  // below can see it (mirrors the owner flipping a diagram public).
+  const pub = await request.patch(`/api/system-designs/${id}`, {
+    headers: { Cookie: OWNER_COOKIE, "Content-Type": "application/json" },
+    data: { is_public: true },
+  });
+  expect(pub.status()).toBe(200);
+
   const got = await request.get(`/api/system-designs/${id}`);
   expect(got.status()).toBe(200);
   const design = await got.json();
