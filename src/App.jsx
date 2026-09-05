@@ -5,6 +5,7 @@ import SignInScreen from './components/SignInScreen'
 import { IndexView } from './views/IndexView'
 import { DetailView } from './views/DetailView'
 import { layoutElements } from './layout'
+import { snapAlign } from './snapAlign'
 import { findService } from './services'
 
 // ─── Default data ─────────────────────────────────────────────────────────────
@@ -119,6 +120,16 @@ export default function App() {
   const [devBypass, setDevBypass] = useState(false)
   const canAI = (Boolean(user) || import.meta.env.DEV) && !isDemo
   const rfInstance = useRef(null)
+  // Snap-align: yellow guides to draw, plus a live "is Cmd/Ctrl down" flag. The
+  // flag is a ref because it is read inside the drag handler on every frame.
+  const [snapGuides, setSnapGuides] = useState([])
+  const snapModRef = useRef(false)
+  useEffect(() => {
+    const track = e => { snapModRef.current = e.metaKey || e.ctrlKey }
+    const events = ['keydown', 'keyup', 'pointerdown', 'pointermove']
+    events.forEach(t => window.addEventListener(t, track))
+    return () => events.forEach(t => window.removeEventListener(t, track))
+  }, [])
   const pendingFit = useRef(false)
   const menuRef = useRef(null)
   const aiInputRef = useRef(null)
@@ -338,15 +349,40 @@ export default function App() {
   // Let nodes be dragged around the canvas (positions live in React state, and
   // are saved to the DB on drag-end when the owner can edit).
   const onNodesChange = useCallback(
-    changes => setNodes(nds => {
-      const next = applyNodeChanges(changes, nds)
-      if (canAI && activeDiagram?.id && changes.some(c => c.type === 'position' && c.dragging === false)) {
-        savePositions(activeDiagram.id, next)
+    changes => {
+      // Cmd/Ctrl held while dragging -> rewrite the drag position so the node
+      // latches onto the closest alignment, and show the yellow guide there.
+      // Rewriting the CHANGE (not the node afterwards) is what makes the snap
+      // stick on release: React Flow's own drag position never lands in state.
+      let applied = changes
+      const drag = changes.find(c => c.type === 'position' && c.position)
+      if (drag && snapModRef.current) {
+        const all = rfInstance.current?.getNodes() ?? []
+        const dragged = all.find(n => n.id === drag.id)
+        // Only real service nodes are snap targets - the auto Start/Destination
+        // pills are decorations whose position is derived, not laid out.
+        const targets = all.filter(n => n.type === 'awsNode')
+        if (dragged) {
+          const { position, guides } = snapAlign({ ...dragged, position: drag.position }, targets)
+          applied = changes.map(c => (c === drag ? { ...c, position } : c))
+          setSnapGuides(drag.dragging === false ? [] : guides)
+        }
+      } else if (drag) {
+        setSnapGuides(g => (g.length ? [] : g))
       }
-      return next
-    }),
+      setNodes(nds => {
+        const next = applyNodeChanges(applied, nds)
+        if (canAI && activeDiagram?.id && applied.some(c => c.type === 'position' && c.dragging === false)) {
+          savePositions(activeDiagram.id, next)
+        }
+        return next
+      })
+    },
     [canAI, activeDiagram, savePositions],
   )
+
+  // Clear the guides whenever the drag (or the modifier) ends.
+  const onNodeDragStop = useCallback(() => setSnapGuides(g => (g.length ? [] : g)), [])
 
   useEffect(() => {
     if (pendingFit.current && rfInstance.current) {
@@ -597,6 +633,7 @@ export default function App() {
       activeDiagram={activeDiagram}
       detailCodeCopied={detailCodeCopied} setDetailCodeCopied={setDetailCodeCopied}
       nodes={displayNodes} edges={displayEdges} onNodesChange={onNodesChange}
+      onNodeDragStop={onNodeDragStop} snapGuides={snapGuides}
       exportPng={exportPng} exportCode={exportCode} exportJson={exportJson}
       copyLink={copyLink} copiedLink={copiedLink}
       shareAction={shareAction} copiedShare={copiedShare}

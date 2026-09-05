@@ -5,6 +5,7 @@ import ImportFormatsModal from '../components/ImportFormatsModal'
 import { nodeTypes } from '../components/AwsNode'
 import { edgeTypes } from '../components/GradientEdge'
 import { Toast } from '../components/Toast'
+import { SnapGuides } from '../components/SnapGuides'
 import { Footer } from '../components/Footer'
 import { brandFor } from '../brands'
 
@@ -22,7 +23,7 @@ export function DetailView({
   badgeMode, setBadgeMode,
   activeDiagram,
   detailCodeCopied, setDetailCodeCopied,
-  nodes, edges, onNodesChange,
+  nodes, edges, onNodesChange, onNodeDragStop, snapGuides = [],
   exportPng, exportCode, exportJson, copyLink, copiedLink, shareAction, copiedShare, copyCode, copiedCode,
   showDocs, setShowDocs, copiedLabel, onCopyFormat,
   showToastMsg,
@@ -270,6 +271,10 @@ export function DetailView({
             className={`${showSteps ? 'sd-steps-on ' : ''}sd-badge-${badgeMode}`}
             nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
+            onNodeDragStop={onNodeDragStop}
+            /* Cmd/Ctrl is reserved for snap-align while dragging, so additive
+               multi-select moves to Shift (box-select already uses Shift). */
+            multiSelectionKeyCode="Shift"
             onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => inst.fitView({ padding: 0.15 }), 0) }}
             onMoveEnd={(_, viewport) => flashZoomHud(viewport.zoom)}
             fitView fitViewOptions={{ padding: 0.15 }}
@@ -278,6 +283,7 @@ export function DetailView({
             proOptions={{ hideAttribution: true }}
           >
             <Background variant="dots" gap={24} size={1} color="#e6e8eb" />
+            <SnapGuides guides={snapGuides} />
           </ReactFlow>
 
           {/* Info card overlay - title + what it tests + goal, pinned top-left of the canvas */}
