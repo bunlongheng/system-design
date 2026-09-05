@@ -30,6 +30,7 @@ export function DetailView({
   isPublic,
   saveState = 'idle',
   onArrange,
+  showArrangeUndo, arrangeUndone, onArrangeUndo,
 }) {
   const brand = brandFor(activeDiagram?.title)
   return (
@@ -127,6 +128,8 @@ export function DetailView({
             Fit
           </button>
 
+          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+
           {/* Auto-arrange: re-lay-out left-to-right, spread out, step-ordered, then fit */}
           <button onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -143,6 +146,31 @@ export function DetailView({
             </svg>
             Arrange
           </button>
+
+          {/* Only offered right after an Arrange - it is the one click that can
+              wipe a hand-placed layout. Flips to Redo so you can go back and
+              forth, and disappears as soon as you move a node yourself. */}
+          {showArrangeUndo && (
+            <button onClick={onArrangeUndo}
+              title={arrangeUndone ? 'Re-apply the auto-arrange' : 'Put the previous layout back'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '0 10px', height: 30, borderRadius: 8,
+                border: '1px solid #fcd34d', background: '#fffbeb', color: '#92400e',
+                cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                transition: 'all 0.1s', fontFamily: 'inherit', flexShrink: 0,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#fef3c7')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#fffbeb')}
+            >
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                {arrangeUndone
+                  ? <><path d="M21 10H8a5 5 0 0 0 0 10h1" /><polyline points="17 6 21 10 17 14" /></>
+                  : <><path d="M3 10h13a5 5 0 0 1 0 10h-1" /><polyline points="7 6 3 10 7 14" /></>}
+              </svg>
+              {arrangeUndone ? 'Redo' : 'Undo'}
+            </button>
+          )}
 
           <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 

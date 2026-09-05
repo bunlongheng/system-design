@@ -12,6 +12,20 @@ import { findService } from './services'
 
 const colorOf = id => findService({ id })?.color || '#6b7280'
 
+// The area a diagram has to fit in, so Arrange can size the layout to the real
+// canvas instead of guessing. Falls back to the window when the canvas is not
+// mounted yet (opening a diagram straight from a /?id= URL).
+function canvasSize() {
+  const el = typeof document !== 'undefined' && document.querySelector('.react-flow')
+  if (el?.clientWidth) return { width: el.clientWidth, height: el.clientHeight }
+  return { width: window.innerWidth, height: Math.max(320, window.innerHeight - 54) }
+}
+
+// A layout snapshot: just the node positions, which is all Arrange changes.
+const positionsOf = nds => nds
+  .filter(n => n.type === 'awsNode' && n.position)
+  .map(n => ({ id: n.id, position: { ...n.position } }))
+
 // Every edge renders as a gradient (source color -> target color) and is
 // animated with marching motion. Node id === service key, so we can look up
 // each endpoint's brand color directly.
@@ -124,6 +138,11 @@ export default function App() {
   // flag is a ref because it is read inside the drag handler on every frame.
   const [snapGuides, setSnapGuides] = useState([])
   const snapModRef = useRef(false)
+  // Arrange is the one destructive click on the canvas - it throws away a
+  // hand-placed layout. So it offers a way back, but only right after you press
+  // it: { before, after, undone }. No permanent undo/redo chrome in the toolbar.
+  const [arrangeUndo, setArrangeUndo] = useState(null)
+  const nodesRef = useRef([])
   useEffect(() => {
     const track = e => { snapModRef.current = e.metaKey || e.ctrlKey }
     const events = ['keydown', 'keyup', 'pointerdown', 'pointermove']
@@ -247,6 +266,7 @@ export default function App() {
 
   function openDiagram(d) {
     setActiveDiagram(d)
+    setArrangeUndo(null)
     const raw = d.data.nodes || []
     // Use the owner's saved layout when every node has a stored position;
     // otherwise auto-layout with dagre so nothing overlaps.
@@ -255,7 +275,7 @@ export default function App() {
     // bring-your-own-icon node renders its own logo, not a catalog lookup.
     const n = raw.map(nd => ({ ...nd, type: 'awsNode', data: { id: nd.id, label: nd.label, icon: nd.icon, color: nd.color, sub: nd.sub }, ...(hasSaved ? { position: nd.position } : {}) }))
     const e = buildEdges(d.data.edges)
-    setNodes(hasSaved ? n : layoutElements(n, e))
+    setNodes(hasSaved ? n : layoutElements(n, e, { canvas: canvasSize() }))
     setEdges(e)
     setView('detail')
     pendingFit.current = true
@@ -338,13 +358,28 @@ export default function App() {
   // steps ordered top-to-bottom, labels clear of nodes), fit-zoom, and persist for
   // the owner so the tidy layout sticks.
   const autoArrange = useCallback(() => {
-    setNodes(nds => {
-      const arranged = layoutElements(nds.filter(n => n.type === 'awsNode'), edges)
-      if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, arranged)
-      return arranged
-    })
+    const current = nodesRef.current
+    const arranged = layoutElements(current.filter(n => n.type === 'awsNode'), edges, { canvas: canvasSize() })
+    setNodes(arranged)
+    setArrangeUndo({ before: positionsOf(current), after: positionsOf(arranged), undone: false })
+    if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, arranged)
     setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
   }, [edges, canAI, activeDiagram, savePositions])
+
+  // Undo/redo the last Arrange: put the saved positions back (and re-fit, since
+  // Arrange zoomed to its own layout and the old one may sit elsewhere).
+  const toggleArrangeUndo = useCallback(() => {
+    setArrangeUndo(u => {
+      if (!u) return u
+      const target = u.undone ? u.after : u.before
+      const byId = Object.fromEntries(target.map(p => [p.id, p.position]))
+      const next = nodesRef.current.map(n => (byId[n.id] ? { ...n, position: { ...byId[n.id] } } : n))
+      setNodes(next)
+      if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, next)
+      setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
+      return { ...u, undone: !u.undone }
+    })
+  }, [canAI, activeDiagram, savePositions])
 
   // Let nodes be dragged around the canvas (positions live in React state, and
   // are saved to the DB on drag-end when the owner can edit).
@@ -377,12 +412,18 @@ export default function App() {
         }
         return next
       })
+      // Moving a node by hand is a new layout - the Arrange offer no longer applies.
+      if (applied.some(c => c.type === 'position' && c.dragging === false)) setArrangeUndo(null)
     },
     [canAI, activeDiagram, savePositions],
   )
 
   // Clear the guides whenever the drag (or the modifier) ends.
   const onNodeDragStop = useCallback(() => setSnapGuides(g => (g.length ? [] : g)), [])
+
+  // nodesRef mirrors the node state so drag/arrange handlers can read the layout
+  // without re-creating themselves on every drag frame.
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
 
   useEffect(() => {
     if (pendingFit.current && rfInstance.current) {
@@ -634,6 +675,7 @@ export default function App() {
       detailCodeCopied={detailCodeCopied} setDetailCodeCopied={setDetailCodeCopied}
       nodes={displayNodes} edges={displayEdges} onNodesChange={onNodesChange}
       onNodeDragStop={onNodeDragStop} snapGuides={snapGuides}
+      arrangeUndone={arrangeUndo?.undone} showArrangeUndo={Boolean(arrangeUndo)} onArrangeUndo={toggleArrangeUndo}
       exportPng={exportPng} exportCode={exportCode} exportJson={exportJson}
       copyLink={copyLink} copiedLink={copiedLink}
       shareAction={shareAction} copiedShare={copiedShare}

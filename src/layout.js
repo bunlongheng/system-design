@@ -1,26 +1,114 @@
 import * as dagre from '@dagrejs/dagre'
+import { findService } from './services'
 
 // Real node cards are ~150w x ~100h; pad them so dagre leaves room for the
-// edge labels that sit BETWEEN nodes. Generous ranksep/nodesep is what stops
-// labels from landing on top of a node.
+// edge labels that sit BETWEEN nodes.
 const NODE_W = 190
 const NODE_H = 120
 
+// Spacing is sized to the BADGE (edge label), not padded way out: a badge is
+// ~100w x ~24h, so a column gap a bit over the badge width and a row gap a bit
+// over a node's height is all that's needed to keep labels off the nodes. Keeping
+// these tight is what makes a big fan-out graph pack small instead of exploding
+// into a sea of whitespace + long crossing edges on fitView.
+const RANK_SEP = 150 // gap BETWEEN columns (LR) - clears a ~100px badge with margin
+const NODE_SEP = 95  // gap between stacked nodes in a column - clears a badge row
+const EDGE_SEP = 30  // separation between adjacent parallel edges
+
+// A laid-out column costs this much horizontally, a wrapped band this much
+// vertically.
+const COL_STEP = NODE_W + RANK_SEP
+const BAND_GAP = 130
+
+// The auto Start here / Destination pills hang ~200px off the first and last
+// node and fitView zooms to include them, so they eat into the width budget.
+const MARKER_PAD = 400
+
+// Arrange only spends this much of the canvas width, so the diagram keeps a
+// margin instead of stretching edge to edge - stretching is what shrinks icons.
+const WIDTH_BUDGET = 0.75
+
+// Used when the caller does not know the canvas size.
+const DEFAULT_CANVAS = { width: 1440, height: 800 }
+
+// Keeping the styled layout is worth giving up this much screen size, but no
+// more: past that the icons have shrunk enough that the style stops paying off.
+const STYLE_TOLERANCE = 0.9
+
+// ─── Vertical roles ───────────────────────────────────────────────────────────
+// The house style: the flow reads left-to-right down the middle, the data layer
+// hangs BELOW it and the edge/config layer sits ABOVE it. A service that only
+// attaches to one node (a database, a CDN, a flag service) does not deserve a
+// column of its own - it tucks above or below the node it serves, which keeps
+// the diagram short instead of stretching it further right.
+const BELOW = /db|database|sql|postgres|mysql|aurora|rds|dynamo|mongo|cassandra|keyspace|redis|cache|memcach|elasticache|s3|storage|bucket|object|warehouse|data lake/i
+const ABOVE = /cdn|cloudfront|flag|launchdarkly|monitor|cloudwatch|observab|logging|logs|trail|metric|config|dns|route ?53|waf|analytics/i
+
+function verticalRole(node) {
+  const svc = findService(node.data ?? node) || {}
+  const text = [node.id, node.label, node.sub, svc.label, svc.sub].filter(Boolean).join(' ')
+  if (BELOW.test(text)) return 'below'
+  if (ABOVE.test(text)) return 'above'
+  return null
+}
+
+// Leaves (one edge) that carry a vertical role, mapped to the node they serve.
+function tuckables(nodes, edges) {
+  const degree = {}
+  const neighbour = {}
+  edges.forEach(e => {
+    if (!e.source || !e.target) return
+    degree[e.source] = (degree[e.source] || 0) + 1
+    degree[e.target] = (degree[e.target] || 0) + 1
+    neighbour[e.source] = e.target
+    neighbour[e.target] = e.source
+  })
+  const out = new Map()
+  nodes.forEach(n => {
+    const role = degree[n.id] === 1 ? verticalRole(n) : null
+    if (role && neighbour[n.id]) out.set(n.id, { role, parent: neighbour[n.id] })
+  })
+  // Never tuck so much that there is no flow left to lay out.
+  if (nodes.length - out.size < 2) out.clear()
+  return out
+}
+
+// ─── Public ───────────────────────────────────────────────────────────────────
 // Auto-layout: dagre computes clean, non-overlapping positions. Node data/type
 // and edge styling are preserved - only each node's position changes.
-export function layoutElements(nodes, edges, { rankdir = 'LR' } = {}) {
+//
+// Two candidates are built - the plain flow, and the styled one where role
+// leaves tuck above/below what they serve - and the one that ends up bigger on
+// screen wins. Tucking is the look we want, but on a fan-out heavy graph it can
+// stack a column so tall that everything shrinks, which defeats the point.
+export function layoutElements(nodes, edges, { rankdir = 'LR', canvas } = {}) {
+  const cv = canvas ?? DEFAULT_CANVAS
+  const plain = buildLayout(nodes, edges, rankdir, cv, new Map())
+  const tucked = tuckables(nodes, edges)
+  if (!tucked.size) return plain.nodes
+  const styled = buildLayout(nodes, edges, rankdir, cv, tucked)
+  return styled.scale >= plain.scale * STYLE_TOLERANCE ? styled.nodes : plain.nodes
+}
+
+// ─── Build ────────────────────────────────────────────────────────────────────
+function buildLayout(nodes, edges, rankdir, canvas, tucked) {
   const g = new dagre.graphlib.Graph()
   g.setGraph({
     rankdir,
-    ranksep: 320, nodesep: 220, edgesep: 120, marginx: 40, marginy: 40,
+    ranksep: RANK_SEP, nodesep: NODE_SEP, edgesep: EDGE_SEP, marginx: 40, marginy: 40,
     ranker: 'network-simplex', // best rank assignment -> fewest long edges
     acyclicer: 'greedy',       // break feedback loops cleanly so back-edges
                                // don't route around and tangle the whole graph
   })
   g.setDefaultEdgeLabel(() => ({}))
 
-  nodes.forEach(n => g.setNode(n.id, { width: NODE_W, height: NODE_H }))
-  edges.forEach(e => { if (e.source && e.target) g.setEdge(e.source, e.target) })
+  // Tucked leaves are held back from dagre entirely - they get parked on their
+  // parent's column afterwards instead of earning a rank of their own.
+  const flow = nodes.filter(n => !tucked.has(n.id))
+  flow.forEach(n => g.setNode(n.id, { width: NODE_W, height: NODE_H }))
+  edges.forEach(e => {
+    if (e.source && e.target && !tucked.has(e.source) && !tucked.has(e.target)) g.setEdge(e.source, e.target)
+  })
 
   dagre.layout(g)
 
@@ -33,7 +121,7 @@ export function layoutElements(nodes, edges, { rankdir = 'LR' } = {}) {
   edges.forEach((e, i) => { if (e.source != null && arrival[e.source] === undefined) arrival[e.source] = i - 0.5 })
   const orderKey = id => (arrival[id] ?? Number.MAX_SAFE_INTEGER)
 
-  const placed = nodes.map(n => ({ n, p: g.node(n.id) })).filter(x => x.p)
+  const placed = flow.map(n => ({ n, p: g.node(n.id) })).filter(x => x.p)
   const cols = new Map()
   for (const item of placed) {
     const k = Math.round(item.p.x)
@@ -47,8 +135,139 @@ export function layoutElements(nodes, edges, { rankdir = 'LR' } = {}) {
       .forEach((a, i) => newY.set(a.n.id, slots[i]))
   }
 
-  return placed.map(({ n, p }) => ({
-    ...n,
-    position: { x: p.x - NODE_W / 2, y: (newY.get(n.id) ?? p.y) - NODE_H / 2 },
-  }))
+  const centers = new Map(placed.map(({ n, p }) => [n.id, { x: p.x, y: newY.get(n.id) ?? p.y }]))
+
+  // Park each tucked leaf on its parent's column, walking outward from the parent
+  // until the slot is clear. Stepping blindly off the parent is what put a
+  // DynamoDB exactly on top of a Microservices node: the parent's column already
+  // had its own nodes further down, and nothing was checking them.
+  const byId = new Map(nodes.map(n => [n.id, n]))
+  const taken = new Map([...cols.entries()].map(([k, items]) => [k, items.map(it => centers.get(it.n.id).y)]))
+  const seated = []
+  for (const [id, { role, parent }] of tucked) {
+    const anchor = centers.get(parent)
+    if (!anchor) continue
+    const key = Math.round(g.node(parent).x)
+    const ys = taken.get(key) ?? []
+    const dir = role === 'above' ? -1 : 1
+    let y = anchor.y + dir * SLOT
+    for (let k = 2; k <= nodes.length + 2 && !isFree(y, ys); k++) y = anchor.y + dir * SLOT * k
+    centers.set(id, { x: anchor.x, y })
+    ys.push(y)
+    taken.set(key, ys)
+    const item = { n: byId.get(id) }
+    seated.push(item)
+    cols.get(key)?.push(item)
+  }
+
+  wrapIntoBands(cols, centers, canvas)
+  separate(cols, centers)
+
+  const out = [...placed.map(({ n }) => n), ...seated.map(s => s.n)].map(n => {
+    const c = centers.get(n.id)
+    return { ...n, position: { x: c.x - NODE_W / 2, y: c.y - NODE_H / 2 } }
+  })
+  return { nodes: out, scale: scaleOf(out, canvas) }
+}
+
+const SLOT = NODE_H + NODE_SEP           // one vertical step in a column
+const MIN_GAP = NODE_H + 40              // closest 2 node centers may ever sit
+
+const isFree = (y, ys) => ys.every(o => Math.abs(o - y) >= MIN_GAP)
+
+// Last line of defence: nothing may ever overlap. Everything above tries to
+// place nodes cleanly, but a single overlap ruins a diagram, so each column is
+// swept top to bottom and anything too close to its neighbour is pushed down.
+function separate(cols, centers) {
+  const byX = new Map()
+  for (const items of cols.values()) {
+    for (const it of items) {
+      const c = centers.get(it.n.id)
+      const k = Math.round(c.x)
+      if (!byX.has(k)) byX.set(k, [])
+      byX.get(k).push(it.n.id)
+    }
+  }
+  for (const ids of byX.values()) {
+    ids.sort((a, b) => centers.get(a).y - centers.get(b).y)
+    for (let i = 1; i < ids.length; i++) {
+      const prev = centers.get(ids[i - 1])
+      const cur = centers.get(ids[i])
+      if (cur.y - prev.y < MIN_GAP) centers.set(ids[i], { ...cur, y: prev.y + MIN_GAP })
+    }
+  }
+}
+
+// How big this layout ends up on screen - the thing we are actually optimising,
+// since a bigger scale is the same as bigger icons.
+function scaleOf(nodes, canvas) {
+  const xs = nodes.map(n => n.position.x)
+  const ys = nodes.map(n => n.position.y)
+  const w = Math.max(...xs) - Math.min(...xs) + NODE_W + MARKER_PAD
+  const h = Math.max(...ys) - Math.min(...ys) + NODE_H
+  return Math.min((canvas.width * WIDTH_BUDGET) / w, canvas.height / h)
+}
+
+// ─── Wrap ─────────────────────────────────────────────────────────────────────
+// A long left-to-right chain is what makes Arrange look bad: the graph gets very
+// wide, fitView zooms out to fit it and every icon ends up tiny. So the columns
+// only run out to a width budget - past that the layout goes DOWN instead of
+// further right, in bands.
+//
+// This applies to straight pipelines ONLY (see the guard below). Which shape
+// wins is decided by the size it would end up on screen, not by a fixed rule -
+// that is what stops a wrap being applied to a chain that is already tall.
+//
+// Bands alternate direction, so the last column of one band sits directly above
+// the first column of the next and the wrapping edge is a short hop rather than
+// a long line back across the whole diagram.
+function wrapIntoBands(cols, centers, canvas) {
+  const ranks = [...cols.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, items]) => {
+      const ys = items.map(it => centers.get(it.n.id).y)
+      return { items, mid: (Math.min(...ys) + Math.max(...ys)) / 2, height: Math.max(...ys) - Math.min(...ys) + NODE_H }
+    })
+  if (ranks.length < 2) return
+  // Only a straight pipeline gets wrapped. Wrapping a graph that branches drags
+  // every fan-out edge across the bands and reads far worse than the wide
+  // version it was trying to improve on - a smaller bounding box is not worth a
+  // diagram you cannot follow.
+  if (ranks.some(r => r.items.length > 1)) return
+
+  let best = null
+  for (let per = 1; per <= ranks.length; per++) {
+    const bands = splitEvenly(ranks, per)
+    const w = Math.max(...bands.map(b => b.length)) * COL_STEP - RANK_SEP + MARKER_PAD
+    const h = bands.reduce((sum, b) => sum + Math.max(...b.map(r => r.height)), 0) + (bands.length - 1) * BAND_GAP
+    const scale = Math.min((canvas.width * WIDTH_BUDGET) / w, canvas.height / h)
+    // >= so a tie goes to the wider, flatter option - fewer bands reads better.
+    if (!best || scale >= best.scale) best = { scale, bands }
+  }
+
+  let top = 0
+  best.bands.forEach((band, b) => {
+    const bandHeight = Math.max(...band.map(r => r.height))
+    const mid = top + bandHeight / 2
+    band.forEach((rank, i) => {
+      // Even bands read left-to-right, odd ones right-to-left.
+      const slot = b % 2 === 0 ? i : band.length - 1 - i
+      const x = slot * COL_STEP
+      rank.items.forEach(it => {
+        const c = centers.get(it.n.id)
+        centers.set(it.n.id, { x, y: mid + (c.y - rank.mid) })
+      })
+    })
+    top += bandHeight + BAND_GAP
+  })
+}
+
+// Consecutive chunks of at most `per` ranks, sized evenly across the bands they
+// need: 5 ranks at 3 per band is 3 + 2, never 3 + 1 + 1.
+function splitEvenly(ranks, per) {
+  const bandCount = Math.ceil(ranks.length / per)
+  const size = Math.ceil(ranks.length / bandCount)
+  const out = []
+  for (let i = 0; i < ranks.length; i += size) out.push(ranks.slice(i, i + size))
+  return out
 }
