@@ -8,6 +8,10 @@ import { signSession } from "../../lib/auth-session.js";
 const SECRET = process.env.SYSTEM_DESIGNS_API_SECRET || "e2e-secret";
 const OWNER_COOKIE = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
 
+// A roomy viewport keeps the drag away from the canvas edges, where React Flow
+// auto-pans and the geometry stops being predictable.
+test.use({ viewport: { width: 1440, height: 900 } });
+
 const DESIGN = {
   title: "E2E Snap Align",
   type: "system-design",
@@ -51,20 +55,25 @@ test("Cmd + drag snaps a node onto its neighbour's line and shows a yellow guide
       Number(document.querySelector(".react-flow__viewport").style.transform.match(/scale\(([\d.]+)\)/)[1]),
     );
     const box = await moving.boundingBox();
-    const grab = { x: box.x + box.width / 2, y: box.y + 8 };
+    let px = box.x + box.width / 2;
+    let py = box.y + 8;
 
-    // Phase 1 - plain drag most of the way up, no modifier, so nothing snaps.
-    await page.mouse.move(grab.x, grab.y);
+    // Drag it to 5px shy of the anchor's line WITHOUT the modifier, correcting
+    // from the node's real position each step: React Flow auto-pans near the
+    // canvas edge, so a delta computed up front lands somewhere else.
+    await page.mouse.move(px, py);
     await page.mouse.down();
-    await page.mouse.move(grab.x, grab.y - (await flowY(moving)) * zoom * 0.9, { steps: 10 });
+    for (let i = 0; i < 12; i++) {
+      const off = (await flowY(moving)) - anchorY - 5;
+      if (Math.abs(off) < 1) break;
+      py -= off * zoom;
+      await page.mouse.move(px, py, { steps: 4 });
+    }
+    expect(await flowY(moving)).toBeCloseTo(anchorY + 5, 0);
 
-    // Phase 2 - measure where the un-snapped drag actually sits, then nudge to
-    // 4px shy of the anchor's line with Cmd held. Measuring beats computing the
-    // screen delta up front: React Flow auto-pans near the canvas edge.
-    const off = (await flowY(moving)) - anchorY;
+    // Now hold Cmd and nudge 1px: close enough to latch on.
     await page.keyboard.down("Meta");
-    const now = await moving.boundingBox();
-    await page.mouse.move(now.x + now.width / 2, now.y + 8 - (off - 4) * zoom, { steps: 8 });
+    await page.mouse.move(px, py - 1, { steps: 2 });
 
     // The yellow guide is on screen while the snap is engaged.
     await expect(page.locator(".sd-snap-guide")).toHaveCount(1);
