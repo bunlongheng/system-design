@@ -163,9 +163,16 @@ function buildLayout(nodes, edges, rankdir, canvas, tucked) {
   wrapIntoBands(cols, centers, canvas)
   separate(cols, centers)
 
+  // Convert center -> top-left using each node's OWN measured size. Using the
+  // nominal card size here left-aligned every node in a column, so boxes of
+  // different widths ended up with different centers and the connector between
+  // them ran on a slant. Centering on the real width is what makes a stacked
+  // chain line up and its edges draw dead straight.
   const out = [...placed.map(({ n }) => n), ...seated.map(s => s.n)].map(n => {
     const c = centers.get(n.id)
-    return { ...n, position: { x: c.x - NODE_W / 2, y: c.y - NODE_H / 2 } }
+    const w = n.measured?.width ?? NODE_W
+    const h = n.measured?.height ?? NODE_H
+    return { ...n, position: { x: c.x - w / 2, y: c.y - h / 2 } }
   })
   return { nodes: out, scale: scaleOf(out, canvas) }
 }

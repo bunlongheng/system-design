@@ -92,3 +92,24 @@ describe("layoutElements", () => {
     expect(width).toBeLessThan(1440);
   });
 });
+
+describe("layoutElements column alignment", () => {
+  it("centers boxes of different widths on the same axis, so connectors run straight", () => {
+    // A vertical chain of 3 nodes whose rendered widths differ - the case where
+    // left-aligning them put a slant on every connector.
+    const sized = (id, w) => ({ id, type: "awsNode", data: { id }, measured: { width: w, height: 118 } });
+    const nodes = [sized("microservices", 205), sized("postgres", 150), sized("s3", 132)];
+    const edges = [
+      { id: "e0", source: "microservices", target: "postgres" },
+      { id: "e1", source: "postgres", target: "s3" },
+    ];
+    const out = layoutElements(nodes, edges, { canvas: { width: 1440, height: 800 } });
+    const centerX = id => {
+      const n = out.find(x => x.id === id);
+      return n.position.x + n.measured.width / 2;
+    };
+    // Every node in the chain shares a center, whatever its width.
+    expect(centerX("postgres")).toBeCloseTo(centerX("microservices"), 5);
+    expect(centerX("s3")).toBeCloseTo(centerX("microservices"), 5);
+  });
+});
