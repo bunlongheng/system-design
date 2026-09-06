@@ -100,13 +100,23 @@ const clearPolyline = (pts, rects) => {
 
 // Lanes to try for the middle of the route: the natural midpoint first, then
 // just clear of each box's edges, nearest first.
-const lanes = (mid, rects, axis) => {
+//
+// `own` is the edge's own two boxes. They are not obstacles - the route starts
+// and ends on their borders - but the MIDDLE of the route must still not sit
+// inside them, or the line doubles back and crosses the box it just left. That
+// is invisible to the obstacle test, which excludes both endpoints by design.
+const lanes = (mid, rects, axis, own = []) => {
   const out = [mid]
   for (const r of rects) {
     if (axis === 'x') { out.push(r.x - LANE, r.x + r.w + LANE) }
     else { out.push(r.y - LANE, r.y + r.h + LANE) }
   }
-  return [...new Set(out)].sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid))
+  const insideOwn = c => own.some(r => axis === 'x'
+    ? c > r.x - HIT_PAD && c < r.x + r.w + HIT_PAD
+    : c > r.y - HIT_PAD && c < r.y + r.h + HIT_PAD)
+  return [...new Set(out)]
+    .filter(c => !insideOwn(c))
+    .sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid))
 }
 
 // When two boxes share a row, no choice of middle helps - the whole run lives on
@@ -124,7 +134,7 @@ function detour(sRect, tRect, rects, vertical) {
       ? { x: before ? tRect.x : tRect.x + tRect.w, y: tc.y }
       : { x: tc.x, y: before ? tRect.y : tRect.y + tRect.h }
     const mid = vertical ? (s.x + t.x) / 2 : (s.y + t.y) / 2
-    for (const c of lanes(mid, rects, vertical ? 'x' : 'y')) {
+    for (const c of lanes(mid, rects, vertical ? 'x' : 'y', [sRect, tRect])) {
       const pts = vertical
         ? [s, { x: c, y: s.y }, { x: c, y: t.y }, t]
         : [s, { x: s.x, y: c }, { x: t.x, y: c }, t]
@@ -258,19 +268,19 @@ export function GradientEdge({
     const tHoriz = tSide === Position.Left || tSide === Position.Right
     const S = { x: sx, y: sy }, T = { x: tx, y: ty }
     const axis = sHoriz && tHoriz ? 'x' : (!sHoriz && !tHoriz ? 'y' : null)
+    const sRect = { x: sourceNode.internals.positionAbsolute.x, y: sourceNode.internals.positionAbsolute.y, w: sourceNode.measured.width, h: sourceNode.measured.height }
+    const tRect = { x: targetNode.internals.positionAbsolute.x, y: targetNode.internals.positionAbsolute.y, w: targetNode.measured.width, h: targetNode.measured.height }
     let pts = null
     if (axis) {
       const mid = axis === 'x' ? (sx + tx) / 2 : (sy + ty) / 2
-      for (const c of lanes(mid, obstacles, axis)) {
+      for (const c of lanes(mid, obstacles, axis, [sRect, tRect])) {
         const cand = routePoints(S, T, sHoriz, tHoriz, c)
         if (clearPolyline(cand, obstacles)) { pts = cand; break }
       }
       if (!pts) {
         // Nothing clear on these faces - go over the top (or round the side).
-        const sR = { x: sourceNode.internals.positionAbsolute.x, y: sourceNode.internals.positionAbsolute.y, w: sourceNode.measured.width, h: sourceNode.measured.height }
-        const tR = { x: targetNode.internals.positionAbsolute.x, y: targetNode.internals.positionAbsolute.y, w: targetNode.measured.width, h: targetNode.measured.height }
-        pts = detour(sR, tR, obstacles, axis === 'y')
-          || detour(sR, tR, obstacles, axis !== 'y')
+        pts = detour(sRect, tRect, obstacles, axis === 'y')
+          || detour(sRect, tRect, obstacles, axis !== 'y')
           || routePoints(S, T, sHoriz, tHoriz, mid)
       }
     } else {
@@ -278,11 +288,9 @@ export function GradientEdge({
       // other way round, then give up on the L and go over/around instead.
       const a = routePoints(S, T, sHoriz, tHoriz, 0)
       const b = sHoriz ? [S, { x: S.x, y: T.y }, T] : [S, { x: T.x, y: S.y }, T]
-      const sR = { x: sourceNode.internals.positionAbsolute.x, y: sourceNode.internals.positionAbsolute.y, w: sourceNode.measured.width, h: sourceNode.measured.height }
-      const tR = { x: targetNode.internals.positionAbsolute.x, y: targetNode.internals.positionAbsolute.y, w: targetNode.measured.width, h: targetNode.measured.height }
       pts = clearPolyline(a, obstacles) ? a
         : clearPolyline(b, obstacles) ? b
-          : (detour(sR, tR, obstacles, false) || detour(sR, tR, obstacles, true) || a)
+          : (detour(sRect, tRect, obstacles, false) || detour(sRect, tRect, obstacles, true) || a)
     }
     path = roundedPath(pts)
     const m = pts[Math.floor(pts.length / 2)]
