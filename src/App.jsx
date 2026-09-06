@@ -5,11 +5,26 @@ import SignInScreen from './components/SignInScreen'
 import { IndexView } from './views/IndexView'
 import { DetailView } from './views/DetailView'
 import { layoutElements } from './layout'
+import { snapAlign } from './snapAlign'
 import { findService } from './services'
 
 // ─── Default data ─────────────────────────────────────────────────────────────
 
 const colorOf = id => findService({ id })?.color || '#6b7280'
+
+// The area a diagram has to fit in, so Arrange can size the layout to the real
+// canvas instead of guessing. Falls back to the window when the canvas is not
+// mounted yet (opening a diagram straight from a /?id= URL).
+function canvasSize() {
+  const el = typeof document !== 'undefined' && document.querySelector('.react-flow')
+  if (el?.clientWidth) return { width: el.clientWidth, height: el.clientHeight }
+  return { width: window.innerWidth, height: Math.max(320, window.innerHeight - 54) }
+}
+
+// A layout snapshot: just the node positions, which is all Arrange changes.
+const positionsOf = nds => nds
+  .filter(n => n.type === 'awsNode' && n.position)
+  .map(n => ({ id: n.id, position: { ...n.position } }))
 
 // Every edge renders as a gradient (source color -> target color) and is
 // animated with marching motion. Node id === service key, so we can look up
@@ -26,21 +41,13 @@ function buildEdges(rawEdges) {
   }))
 }
 
-// Datastores that can be the "source of truth", most-authoritative first: primary
-// DBs, then object storage, then cache/search. The single "Destination" marker
-// lands on the highest-priority one present - never a queue, cache-as-endpoint, or
-// a plain leaf service.
-const SOURCE_OF_TRUTH = [
-  'dynamo', 'dynamodb', 'rds', 'postgres', 'mysql', 'aurora', 'spanner', 'cockroach',
-  'cassandra', 'keyspaces', 'mongodb', 'bigtable',
-  's3', 'storage',
-  'redis', 'elasticache', 'memcached', 'opensearch', 'elasticsearch',
-]
+// Exactly ONE "Start here" pill per diagram - the source of step 1, which is
+// robust even for closed loops. There is deliberately no Destination pill: it
+// guessed at an endpoint the diagram never claimed, and where a flow BEGINS is
+// the only hint a reader actually needs.
+const NODE_W = 190, NODE_H = 120 // nominal card size, for the free-space check
+const MARKER_GAP = 96            // pill height + connector run
 
-// Exactly ONE "Start here" and ONE "Destination" per diagram - never more, never
-// both on the same node. Start = the source of step 1 (the first action, robust
-// even for closed loops). Destination = the top-priority datastore (source of
-// truth where data lives). Rendered as separate pill nodes, toggled from header.
 function buildMarkers(nodes, edges) {
   if (!nodes.length) return { nodes: [], edges: [] }
   const byId = id => nodes.find(n => n.id === id)
@@ -50,20 +57,43 @@ function buildMarkers(nodes, edges) {
   let startId = edges[0] && edges[0].source && byId(edges[0].source) ? edges[0].source : null
   if (!startId) startId = (nodes.find(n => !hasIncoming.has(n.id)) || nodes[0]).id
 
-  // Destination: single top-priority datastore, but never the Start node.
-  let endId = SOURCE_OF_TRUTH.find(id => byId(id) && id !== startId) || null
+  // The pill must never share a face with an edge - a green arrow landing on the
+  // same side as a real connection reads as part of the flow. So work out which
+  // faces this node's edges already use and take the first free one, preferring
+  // top (a diagram reads downward), then left, then the remaining sides.
+  const nodeCenter = n => ({ x: (n.position?.x ?? 0) + NODE_W / 2, y: (n.position?.y ?? 0) + NODE_H / 2 })
+  const used = new Set()
+  const sc = byId(startId) ? nodeCenter(byId(startId)) : { x: 0, y: 0 }
+  for (const e of edges) {
+    const otherId = e.source === startId ? e.target : e.target === startId ? e.source : null
+    const other = otherId && byId(otherId)
+    if (!other) continue
+    const oc = nodeCenter(other)
+    const dx = oc.x - sc.x, dy = oc.y - sc.y
+    used.add(Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'bottom' : 'top'))
+  }
 
   const mNodes = []
   const s = byId(startId)
   if (s) {
     const p = s.position || { x: 0, y: 0 }
-    // +37 vertically centers the ~110px node against the 36px marker pill.
-    mNodes.push({ id: `__start_${startId}`, type: 'marker', position: { x: p.x - 200, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'start' }, draggable: false, selectable: false })
-  }
-  const e = endId && byId(endId)
-  if (e) {
-    const p = e.position || { x: 0, y: 0 }
-    mNodes.push({ id: `__end_${endId}`, type: 'marker', position: { x: p.x + 210, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'end' }, draggable: false, selectable: false })
+    // A side also has to be physically clear - no point pointing the arrow
+    // through a neighbouring box.
+    const clear = {
+      top: !nodes.some(n => n.id !== startId && n.position && Math.abs(n.position.x - p.x) < NODE_W && p.y - n.position.y > 0 && p.y - n.position.y < NODE_H + MARKER_GAP),
+      bottom: !nodes.some(n => n.id !== startId && n.position && Math.abs(n.position.x - p.x) < NODE_W && n.position.y - p.y > 0 && n.position.y - p.y < NODE_H + MARKER_GAP),
+      left: !nodes.some(n => n.id !== startId && n.position && Math.abs(n.position.y - p.y) < NODE_H && p.x - n.position.x > 0 && p.x - n.position.x < NODE_W + 200),
+      right: !nodes.some(n => n.id !== startId && n.position && Math.abs(n.position.y - p.y) < NODE_H && n.position.x - p.x > 0 && n.position.x - p.x < NODE_W + 200),
+    }
+    const order = ['top', 'left', 'bottom', 'right']
+    const side = order.find(k => !used.has(k) && clear[k]) || order.find(k => !used.has(k)) || 'left'
+    const place = {
+      top: { pos: { x: p.x + 6, y: p.y - MARKER_GAP }, dir: 'down' },
+      bottom: { pos: { x: p.x + 6, y: p.y + NODE_H + 40 }, dir: 'up' },
+      left: { pos: { x: p.x - 200, y: p.y + 37 }, dir: 'right' },
+      right: { pos: { x: p.x + 205, y: p.y + 37 }, dir: 'left' },
+    }[side]
+    mNodes.push({ id: `__start_${startId}`, type: 'marker', position: place.pos, width: 132, height: 36, data: { kind: 'start', dir: place.dir }, draggable: false, selectable: false })
   }
   return { nodes: mNodes, edges: [] }
 }
@@ -74,8 +104,11 @@ const defaultNodes = diagramData.nodes.map(n => ({ ...n, type: 'awsNode', data: 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 // Sample diagrams for index page (fallback when the API has none saved)
+// Shown only when the gallery has nothing real to show. `sample: true` marks it
+// as NOT a saved row: it has no database record, so it must never offer a delete
+// button - clicking one could only ever fail.
 const SEED = [
-  { id: 'ifttt', title: 'IFTTT System Design', data: diagramData, updatedAt: new Date().toISOString(), tags: ['AWS', 'Architecture'] },
+  { id: 'ifttt', title: 'IFTTT System Design', data: diagramData, updatedAt: new Date().toISOString(), tags: ['AWS', 'Architecture'], sample: true },
 ]
 
 export default function App() {
@@ -114,11 +147,37 @@ export default function App() {
   const [diagrams, setDiagrams] = useState(isDemo ? [] : SEED)
   const [loadingId, setLoadingId] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [listError, setListError] = useState(false) // gallery fetch failed
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [devBypass, setDevBypass] = useState(false)
   const canAI = (Boolean(user) || import.meta.env.DEV) && !isDemo
   const rfInstance = useRef(null)
+  // Snap-align: yellow guides to draw, plus a live "is Cmd/Ctrl down" flag. The
+  // flag is a ref because it is read inside the drag handler on every frame.
+  const [snapGuides, setSnapGuides] = useState([])
+  const snapModRef = useRef(false)
+  // Arrange is the one destructive click on the canvas - it throws away a
+  // hand-placed layout. So it offers a way back, but only right after you press
+  // it: { before, after, undone }. No permanent undo/redo chrome in the toolbar.
+  // Undo/redo for the canvas. A step is just the node positions before an edit -
+  // dragging and Arrange are the only things that move anything - so a snapshot
+  // is tiny and restoring is exact. `kind` is kept so undoing an Arrange re-fits
+  // the view (it zoomed to its own layout) while undoing a drag leaves the
+  // viewport alone.
+  const [history, setHistory] = useState({ past: [], future: [] })
+  const nodesRef = useRef([])
+  const dragStartRef = useRef(null)
+  // historyRef mirrors the stack so undo/redo can read it without being rebuilt
+  // (and re-bound to the keyboard) on every step.
+  const historyRef = useRef(history)
+  useEffect(() => { historyRef.current = history }, [history])
+  useEffect(() => {
+    const track = e => { snapModRef.current = e.metaKey || e.ctrlKey || e.shiftKey }
+    const events = ['keydown', 'keyup', 'pointerdown', 'pointermove']
+    events.forEach(t => window.addEventListener(t, track))
+    return () => events.forEach(t => window.removeEventListener(t, track))
+  }, [])
   const pendingFit = useRef(false)
   const menuRef = useRef(null)
   const aiInputRef = useRef(null)
@@ -155,9 +214,15 @@ export default function App() {
           tags: r.tags || [],
         }))
         // On /demo never show the IFTTT SEED sample - only real public demos.
+        setListError(false)
         setDiagrams(mapped.length ? mapped : (isDemo ? [] : SEED))
       })
-      .catch(() => setDiagrams(isDemo ? [] : SEED))
+      .catch(() => {
+        // An unreachable API used to look identical to "you have one diagram":
+        // it fell through to the sample and the gallery said nothing. Say it.
+        setListError(true)
+        setDiagrams(isDemo ? [] : SEED)
+      })
   }, [isDemo])
 
   useEffect(() => { loadDiagrams() }, [loadDiagrams])
@@ -175,9 +240,13 @@ export default function App() {
     fetch('/api/auth/logout', { method: 'POST' }).then(() => { setUser(null); showToastMsg('Signed out') }).catch(() => showToastMsg('Sign out failed'))
   }
 
-  function deleteDiagram(id) {
+  function deleteDiagram(id, { thenBack = false } = {}) {
     fetch(`/api/system-designs/${id}`, { method: 'DELETE' }).then(res => {
       if (!res.ok) { showToastMsg('Delete failed'); return }
+      // Deleting the diagram you are looking at has to leave the canvas too,
+      // or you are staring at something that no longer exists.
+      if (thenBack) { setView('index'); setActiveDiagram(null) }
+      showToastMsg('Deleted')
       loadDiagrams()
     }).catch(() => showToastMsg('Delete failed'))
   }
@@ -236,6 +305,7 @@ export default function App() {
 
   function openDiagram(d) {
     setActiveDiagram(d)
+    setHistory({ past: [], future: [] })
     const raw = d.data.nodes || []
     // Use the owner's saved layout when every node has a stored position;
     // otherwise auto-layout with dagre so nothing overlaps.
@@ -244,7 +314,7 @@ export default function App() {
     // bring-your-own-icon node renders its own logo, not a catalog lookup.
     const n = raw.map(nd => ({ ...nd, type: 'awsNode', data: { id: nd.id, label: nd.label, icon: nd.icon, color: nd.color, sub: nd.sub }, ...(hasSaved ? { position: nd.position } : {}) }))
     const e = buildEdges(d.data.edges)
-    setNodes(hasSaved ? n : layoutElements(n, e))
+    setNodes(hasSaved ? n : layoutElements(n, e, { canvas: canvasSize() }))
     setEdges(e)
     setView('detail')
     pendingFit.current = true
@@ -298,6 +368,37 @@ export default function App() {
     saveTimer.current = setTimeout(() => doSave(diagramId, nds), 600)
   }, [doSave])
 
+  // Record the layout as it was BEFORE an edit. A new edit clears the redo pile,
+  // the same as every editor. 50 steps is far more than anyone walks back.
+  const pushHistory = useCallback((positions, kind) => {
+    setHistory(h => ({ past: [...h.past, { positions, kind }].slice(-50), future: [] }))
+  }, [])
+
+  // Put a snapshot back on the canvas and persist it, so an undo survives reload.
+  const applyPositions = useCallback((positions, refit) => {
+    const byId = Object.fromEntries(positions.map(p => [p.id, p.position]))
+    const next = nodesRef.current.map(n => (byId[n.id] ? { ...n, position: { ...byId[n.id] } } : n))
+    setNodes(next)
+    if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, next)
+    if (refit) setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
+  }, [canAI, activeDiagram, savePositions])
+
+  const undo = useCallback(() => {
+    const { past, future } = historyRef.current
+    if (!past.length) return
+    const step = past[past.length - 1]
+    setHistory({ past: past.slice(0, -1), future: [...future, { positions: positionsOf(nodesRef.current), kind: step.kind }] })
+    applyPositions(step.positions, step.kind === 'arrange')
+  }, [applyPositions])
+
+  const redo = useCallback(() => {
+    const { past, future } = historyRef.current
+    if (!future.length) return
+    const step = future[future.length - 1]
+    setHistory({ past: [...past, { positions: positionsOf(nodesRef.current), kind: step.kind }], future: future.slice(0, -1) })
+    applyPositions(step.positions, step.kind === 'arrange')
+  }, [applyPositions])
+
   // Keyboard shortcuts: Cmd/Ctrl+S saves the current layout immediately (owner,
   // on the detail canvas); Cmd/Ctrl+R re-fetches diagrams in-app (pull-to-refresh)
   // instead of a full browser reload. Both block the browser default.
@@ -313,6 +414,16 @@ export default function App() {
           if (saveTimer.current) clearTimeout(saveTimer.current)
           doSave(activeDiagram.id, nodes, true)
         }
+      } else if (mod && (e.key === 'z' || e.key === 'Z')) {
+        // Cmd/Ctrl+Z undoes, +Shift redoes - but never while typing in the AI
+        // prompt, where the browser's own text undo is what you want.
+        const t = e.target
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+        e.preventDefault()
+        if (view === 'detail') (e.shiftKey ? redo : undo)()
+      } else if (mod && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault()
+        if (view === 'detail') redo()
       } else if (mod && (e.key === 'r' || e.key === 'R')) {
         e.preventDefault()
         loadDiagrams()
@@ -321,32 +432,73 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [view, canAI, activeDiagram, nodes, doSave, loadDiagrams, showToastMsg])
+  }, [view, canAI, activeDiagram, nodes, doSave, loadDiagrams, showToastMsg, undo, redo])
 
   // Auto-arrange: re-run dagre on the current nodes (start on the left, spread out,
   // steps ordered top-to-bottom, labels clear of nodes), fit-zoom, and persist for
   // the owner so the tidy layout sticks.
   const autoArrange = useCallback(() => {
-    setNodes(nds => {
-      const arranged = layoutElements(nds.filter(n => n.type === 'awsNode'), edges)
-      if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, arranged)
-      return arranged
-    })
+    const current = nodesRef.current
+    const arranged = layoutElements(current.filter(n => n.type === 'awsNode'), edges, { canvas: canvasSize() })
+    pushHistory(positionsOf(current), 'arrange')
+    setNodes(arranged)
+    if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, arranged)
     setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
-  }, [edges, canAI, activeDiagram, savePositions])
+  }, [edges, canAI, activeDiagram, savePositions, pushHistory])
 
   // Let nodes be dragged around the canvas (positions live in React state, and
   // are saved to the DB on drag-end when the owner can edit).
   const onNodesChange = useCallback(
-    changes => setNodes(nds => {
-      const next = applyNodeChanges(changes, nds)
-      if (canAI && activeDiagram?.id && changes.some(c => c.type === 'position' && c.dragging === false)) {
-        savePositions(activeDiagram.id, next)
+    changes => {
+      // Cmd/Ctrl held while dragging -> rewrite the drag position so the node
+      // latches onto the closest alignment, and show the yellow guide there.
+      // Rewriting the CHANGE (not the node afterwards) is what makes the snap
+      // stick on release: React Flow's own drag position never lands in state.
+      let applied = changes
+      const drags = changes.filter(c => c.type === 'position' && c.position)
+      const drag = drags[0]
+      // Only a single-node drag snaps. Rewriting one position out of a multi-node
+      // drag would shear the selection apart.
+      if (drag && drags.length === 1 && snapModRef.current) {
+        const all = rfInstance.current?.getNodes() ?? []
+        const dragged = all.find(n => n.id === drag.id)
+        // Only real service nodes are snap targets - the auto Start/Destination
+        // pills are decorations whose position is derived, not laid out.
+        const targets = all.filter(n => n.type === 'awsNode')
+        if (dragged) {
+          const { position, guides } = snapAlign({ ...dragged, position: drag.position }, targets)
+          applied = changes.map(c => (c === drag ? { ...c, position } : c))
+          setSnapGuides(drag.dragging === false ? [] : guides)
+        }
+      } else if (drag) {
+        setSnapGuides(g => (g.length ? [] : g))
       }
-      return next
-    }),
-    [canAI, activeDiagram, savePositions],
+      setNodes(nds => {
+        const next = applyNodeChanges(applied, nds)
+        if (canAI && activeDiagram?.id && applied.some(c => c.type === 'position' && c.dragging === false)) {
+          savePositions(activeDiagram.id, next)
+        }
+        return next
+      })
+      // One history step per DRAG, not per frame: stash the layout when a drag
+      // starts and commit it when the mouse comes up.
+      if (drags.some(c => c.dragging) && !dragStartRef.current) {
+        dragStartRef.current = positionsOf(nodesRef.current)
+      }
+      if (applied.some(c => c.type === 'position' && c.dragging === false) && dragStartRef.current) {
+        pushHistory(dragStartRef.current, 'drag')
+        dragStartRef.current = null
+      }
+    },
+    [canAI, activeDiagram, savePositions, pushHistory],
   )
+
+  // Clear the guides whenever the drag (or the modifier) ends.
+  const onNodeDragStop = useCallback(() => setSnapGuides(g => (g.length ? [] : g)), [])
+
+  // nodesRef mirrors the node state so drag/arrange handlers can read the layout
+  // without re-creating themselves on every drag frame.
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
 
   useEffect(() => {
     if (pendingFit.current && rfInstance.current) {
@@ -469,7 +621,7 @@ export default function App() {
       <IndexView
         toast={toast} showToastMsg={showToastMsg}
         search={search} setSearch={setSearch}
-        user={user} canAI={canAI} isDemo={isDemo}
+        user={user} canAI={canAI} isDemo={isDemo} listError={listError}
         showMenu={showMenu} setShowMenu={setShowMenu} menuRef={menuRef}
         showDocs={showDocs} setShowDocs={setShowDocs}
         copiedLabel={copiedLabel} onCopyFormat={copyFormat}
@@ -597,6 +749,9 @@ export default function App() {
       activeDiagram={activeDiagram}
       detailCodeCopied={detailCodeCopied} setDetailCodeCopied={setDetailCodeCopied}
       nodes={displayNodes} edges={displayEdges} onNodesChange={onNodesChange}
+      onNodeDragStop={onNodeDragStop} snapGuides={snapGuides}
+      canUndo={history.past.length > 0} canRedo={history.future.length > 0} onUndo={undo} onRedo={redo}
+      onDeleteDiagram={canAI && activeDiagram?.id ? () => deleteDiagram(activeDiagram.id, { thenBack: true }) : undefined}
       exportPng={exportPng} exportCode={exportCode} exportJson={exportJson}
       copyLink={copyLink} copiedLink={copiedLink}
       shareAction={shareAction} copiedShare={copiedShare}

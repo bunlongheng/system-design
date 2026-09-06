@@ -92,6 +92,7 @@ the same lib/handlers/* on the same routes, listening on :4321.
 - Interactive AWS and GCP system-architecture diagrams
 - Paste-to-render: parse a Mermaid `graph LR`/`graph TD` diagram straight into the canvas
 - Auto-layout via dagre
+- Cmd/Ctrl + drag to snap a node onto the closest neighbour's edge or center line, with a yellow guide showing where it lands
 - Library of AWS/GCP service icons (compute, storage, messaging, security, CI/CD, observability)
 - A gallery that lists saved designs, with deep-linkable `/?id=` share URLs
 - AI-callable artifact API for programmatic diagram creation

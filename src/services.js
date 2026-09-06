@@ -1,11 +1,15 @@
 // ─── AWS Service Config ───────────────────────────────────────────────────────
+// A node's colour tints its card and drives the edge gradient, so it has to
+// match the ICON it wraps. The AWS database glyphs are blue; several were tinted
+// magenta, which read as a pink card around a blue icon.
 
 export const SERVICES = {
   apigw:        { label: 'API Gateway',       sub: 'External Trigger',   icon: '/icons/apigateway.svg',    color: '#e81b7e' },
   lambda:       { label: 'Lambda',            sub: 'Trigger Handler',    icon: '/icons/lambda.svg',        color: '#ed7405' },
   kms:          { label: 'KMS',               sub: 'Token Encryption',   icon: '/icons/kms.svg',           color: '#de3951' },
-  dynamo:       { label: 'DynamoDB',          sub: 'Token Store',        icon: '/icons/dynamodb.svg',      color: '#cb2cd2' },
+  dynamo:       { label: 'DynamoDB',          sub: 'Token Store',        icon: '/icons/dynamodb.svg',      color: '#4050d0' },
   sfn:          { label: 'Step Functions',    sub: 'Multi-Action Flow',  icon: '/icons/stepfunctions.svg', color: '#e81a7e' },
+  insider:      { label: 'Insider Screener',  sub: 'SEC Form 4',         icon: '/icons/gen-insider.svg',   color: '#F5821F' },
   cloudwatch:   { label: 'CloudWatch',        sub: 'Monitoring',         icon: '/icons/cloudwatch.svg',    color: '#e81b7e' },
   cloudtrail:   { label: 'CloudTrail',        sub: 'Audit Logs',         icon: '/icons/cloudtrail.svg',    color: '#e7187d' },
   user:         { label: 'User',              sub: 'Client',             color: '#3b82f6', icon: '/icons/gen-user.svg' },
@@ -25,11 +29,11 @@ export const SERVICES = {
   microservices:{ label: 'Microservices',     sub: 'Business Logic',      color: '#339933', icon: '/icons/gen-microservices.svg' },
   service:      { label: 'Service',           sub: 'Microservice',        color: '#339933', icon: '/icons/gen-service.svg' },
   encoder:      { label: 'Encoding Pipeline', sub: 'Media Processing',    color: '#f97316', icon: '/icons/gen-encoder.svg' },
-  cassandra:    { label: 'Cassandra',         sub: 'NoSQL DB',            icon: '/icons/keyspaces.svg',   color: '#ca2ad2' },
-  keyspaces:    { label: 'Keyspaces',         sub: 'Cassandra-compat',    icon: '/icons/keyspaces.svg',   color: '#ca2ad2' },
-  postgres:     { label: 'PostgreSQL',        sub: 'Relational DB',       icon: '/icons/rds.svg',         color: '#ca2bd2' },
-  mysql:        { label: 'MySQL',             sub: 'Relational DB',       icon: '/icons/rds.svg',         color: '#ca2bd2' },
-  rds:          { label: 'RDS',               sub: 'Relational DB',       icon: '/icons/rds.svg',         color: '#ca2bd2' },
+  cassandra:    { label: 'Cassandra',         sub: 'NoSQL DB',            icon: '/icons/keyspaces.svg',   color: '#4050d0' },
+  keyspaces:    { label: 'Keyspaces',         sub: 'Cassandra-compat',    icon: '/icons/keyspaces.svg',   color: '#4050d0' },
+  postgres:     { label: 'PostgreSQL',        sub: 'Relational DB',       icon: '/icons/rds.svg',         color: '#4060e0' },
+  mysql:        { label: 'MySQL',             sub: 'Relational DB',       icon: '/icons/rds.svg',         color: '#4060e0' },
+  rds:          { label: 'RDS',               sub: 'Relational DB',       icon: '/icons/rds.svg',         color: '#4060e0' },
   mongodb:      { label: 'MongoDB',           sub: 'Document DB',         icon: '/icons/mongodb.svg',  color: '#22c55e' },
   redis:        { label: 'Redis',             sub: 'Cache / Session',     icon: '/icons/redis-2026.svg',  color: '#FF4438' },
   memcached:    { label: 'Memcached',         sub: 'EVCache',             icon: '/icons/elasticache.svg', color: '#cb2cd2' },

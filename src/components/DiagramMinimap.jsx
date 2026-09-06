@@ -5,16 +5,21 @@ import { layoutElements } from '../layout'
 
 export function DiagramMinimap({ diagram }) {
   const W = 224, H = 112
-  // Some diagrams (created via the API without coordinates) have nodes with no
-  // position. Fall back to a simple grid so a single such diagram can never
-  // crash the whole gallery.
-  // Lay out with dagre so the card preview matches the real (detail) diagram,
-  // not the raw stored grid positions.
+  // The preview has to be the SAME layout the canvas will show, or the card is a
+  // false advertisement for what you get on open. So it follows exactly what the
+  // detail view does: use the saved positions when every node has one, and only
+  // fall back to dagre for diagrams created without coordinates.
   // Keep each node's custom brand fields (icon/label/color/sub) so bring-your-own
   // logos show in the preview too, not just catalog services.
-  const rawNodes = (diagram.nodes || []).map(nd => ({ id: nd.id, icon: nd.icon, label: nd.label, color: nd.color, sub: nd.sub }))
+  const raw = diagram.nodes || []
+  const rawNodes = raw.map(nd => ({ id: nd.id, icon: nd.icon, label: nd.label, color: nd.color, sub: nd.sub }))
   const byNodeId = Object.fromEntries(rawNodes.map(nd => [nd.id, nd]))
-  const nds = rawNodes.length ? layoutElements(rawNodes, diagram.edges || []) : []
+  const hasSaved = raw.length > 0 && raw.every(nd => nd.position && Number.isFinite(nd.position.x) && Number.isFinite(nd.position.y))
+  const nds = !rawNodes.length
+    ? []
+    : hasSaved
+      ? rawNodes.map((nd, i) => ({ ...nd, position: { ...raw[i].position } }))
+      : layoutElements(rawNodes, diagram.edges || [])
   const n = nds.length
   if (!n) return <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', background: '#ffffff', borderRadius: 8 }} />
 

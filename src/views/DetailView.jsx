@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ReactFlow, Background } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import diagramData from '../data/diagram.json'
@@ -5,6 +6,7 @@ import ImportFormatsModal from '../components/ImportFormatsModal'
 import { nodeTypes } from '../components/AwsNode'
 import { edgeTypes } from '../components/GradientEdge'
 import { Toast } from '../components/Toast'
+import { SnapGuides } from '../components/SnapGuides'
 import { Footer } from '../components/Footer'
 import { brandFor } from '../brands'
 
@@ -22,15 +24,18 @@ export function DetailView({
   badgeMode, setBadgeMode,
   activeDiagram,
   detailCodeCopied, setDetailCodeCopied,
-  nodes, edges, onNodesChange,
+  nodes, edges, onNodesChange, onNodeDragStop, snapGuides = [],
   exportPng, exportCode, exportJson, copyLink, copiedLink, shareAction, copiedShare, copyCode, copiedCode,
   showDocs, setShowDocs, copiedLabel, onCopyFormat,
   showToastMsg,
   isPublic,
   saveState = 'idle',
   onArrange,
+  canUndo, canRedo, onUndo, onRedo,
+  onDeleteDiagram,
 }) {
   const brand = brandFor(activeDiagram?.title)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       <Toast message={toast.message} visible={toast.visible} />
@@ -126,6 +131,8 @@ export function DetailView({
             Fit
           </button>
 
+          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+
           {/* Auto-arrange: re-lay-out left-to-right, spread out, step-ordered, then fit */}
           <button onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -142,6 +149,54 @@ export function DetailView({
             </svg>
             Arrange
           </button>
+
+          {/* Undo / redo. They appear once there IS something to undo, so a
+              freshly opened diagram keeps a clean toolbar, and each button dims
+              when its own direction is empty. */}
+          {(canUndo || canRedo) && [
+            { key: 'undo', label: 'Undo', on: onUndo, enabled: canUndo, hint: 'Undo (Cmd+Z)', d: 'M3 10h13a5 5 0 0 1 0 10h-1M3 10l4-4M3 10l4 4' },
+            { key: 'redo', label: 'Redo', on: onRedo, enabled: canRedo, hint: 'Redo (Cmd+Shift+Z)', d: 'M21 10H8a5 5 0 0 0 0 10h1M21 10l-4-4M21 10l-4 4' },
+          ].map(b => (
+            <button key={b.key} onClick={() => b.enabled && b.on && b.on()} disabled={!b.enabled} title={b.hint}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+                background: 'transparent', color: b.enabled ? '#64748b' : '#cbd5e1',
+                cursor: b.enabled ? 'pointer' : 'default', fontSize: 13, fontWeight: 400,
+                transition: 'all 0.1s', fontFamily: 'inherit', flexShrink: 0,
+              }}
+              onMouseEnter={e => { if (b.enabled) e.currentTarget.style.background = '#f1f5f9' }}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d={b.d} />
+              </svg>
+              {b.label}
+            </button>
+          ))}
+
+          {/* Delete this diagram, always behind a modal - it is the one
+              irreversible action here, since the API hard-deletes the row.
+              Ownership is decided in App: the handler is only passed down when
+              you can actually edit, so there is one gate, not two. */}
+          {onDeleteDiagram && (
+            <button onClick={() => setConfirmDelete(true)} title="Delete this diagram" style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+              background: 'transparent', color: '#dc2626',
+              cursor: 'pointer', fontSize: 13, fontWeight: 400,
+              transition: 'all 0.1s', fontFamily: 'inherit', flexShrink: 0,
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#fef2f2')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+              Delete
+            </button>
+          )}
 
           <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
@@ -270,6 +325,10 @@ export function DetailView({
             className={`${showSteps ? 'sd-steps-on ' : ''}sd-badge-${badgeMode}`}
             nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
+            onNodeDragStop={onNodeDragStop}
+            /* Cmd/Ctrl is reserved for snap-align while dragging, so additive
+               multi-select moves to Shift (box-select already uses Shift). */
+            multiSelectionKeyCode="Shift"
             onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => inst.fitView({ padding: 0.15 }), 0) }}
             onMoveEnd={(_, viewport) => flashZoomHud(viewport.zoom)}
             fitView fitViewOptions={{ padding: 0.15 }}
@@ -278,6 +337,7 @@ export function DetailView({
             proOptions={{ hideAttribution: true }}
           >
             <Background variant="dots" gap={24} size={1} color="#e6e8eb" />
+            <SnapGuides guides={snapGuides} />
           </ReactFlow>
 
           {/* Info card overlay - title + what it tests + goal, pinned top-left of the canvas */}
@@ -411,6 +471,37 @@ export function DetailView({
       </div>
 
       {/* Public footer - only on a demoed (public) diagram, never owner views */}
+      {/* Delete confirmation. The API hard-deletes - there is no trash to
+          recover from - so the modal names the diagram and says so plainly. */}
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.28)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
+        }}>
+          <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="sd-del-title" style={{
+            background: '#ffffff', borderRadius: 16, padding: '26px 28px 22px', width: 440,
+            boxShadow: '0 32px 80px rgba(0,0,0,0.20), 0 0 0 1px rgba(0,0,0,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
+              <span style={{ width: 34, height: 34, borderRadius: 10, background: '#fef2f2', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                </svg>
+              </span>
+              <h2 id="sd-del-title" style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', margin: 0 }}>Delete this diagram?</h2>
+            </div>
+            <p style={{ fontSize: 13, color: '#65676b', lineHeight: 1.6, margin: '0 0 20px' }}>
+              <b style={{ color: '#1c1e21' }}>{activeDiagram?.title || 'This diagram'}</b> will be removed permanently.
+              There is no trash and no undo - the row is deleted outright.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmDelete(false)} style={{ padding: '9px 18px', border: '1px solid #e4e6e8', borderRadius: 10, background: '#f4f5f7', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', color: '#65676b', fontWeight: 600 }}>Cancel</button>
+              <button onClick={() => { setConfirmDelete(false); onDeleteDiagram() }} autoFocus style={{ padding: '9px 20px', border: 'none', borderRadius: 10, background: '#dc2626', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isPublic && <Footer />}
 
       {/* Import Formats modal (shared) */}
@@ -439,7 +530,7 @@ export function DetailView({
            --c1/--c2 set inline. Appearance switches by wrapper mode class. */
         .sd-edge-badge {
           position: absolute; display: flex; align-items: center; gap: 4px;
-          padding: 2px 7px; border-radius: 999px;
+          padding: 3px 8px; border-radius: 999px;
           font-size: 8.5px; font-weight: 700; line-height: 1.35;
           letter-spacing: 0.01em; white-space: nowrap; pointer-events: none;
         }
@@ -463,15 +554,21 @@ export function DetailView({
         .sd-badge-plain .sd-edge-badge {
           color: #1e2733; border: 1.5px solid #c2c6cc; background: #e9ebee;
         }
-        /* Step number chip inside the badge - hidden until Steps toggle is on. */
+        /* Step number, first thing in the badge - hidden until Steps is on. */
         .sd-step-chip { display: none; }
         .sd-steps-on .sd-step-chip {
           display: inline-flex; align-items: center; justify-content: center;
-          min-width: 13px; height: 13px; padding: 0 3px; border-radius: 999px;
-          font-size: 9px; font-weight: 800; background: #1c1e21; color: #fff;
+          /* Deliberately smaller than the badge's text line, so the circle sits
+             INSIDE the pill with clearance top and bottom instead of pressing
+             against the border. */
+          min-width: 12px; height: 12px; padding: 0 2.5px; border-radius: 999px;
+          font-size: 8px; font-weight: 800; line-height: 1;
+          background: #1c1e21; color: #fff; flex-shrink: 0;
         }
-        /* On a dark badge the dark chip would vanish - flip it. */
-        .sd-badge-dark .sd-step-chip { background: #fff; color: #1c1e21; }
+        /* On a dark badge a dark chip would vanish - flip it. */
+        .sd-badge-dark .sd-step-chip, .sd-badge-color .sd-step-chip {
+          background: #fff; color: #1c1e21;
+        }
         /* On phones the fixed-width side panels would crush the canvas, so drop
            them to full-width bottom sheets over the canvas instead. */
         @media (max-width: 640px) {

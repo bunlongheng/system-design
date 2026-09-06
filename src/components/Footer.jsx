@@ -51,6 +51,12 @@ export function Footer({ fixed = false }) {
       <span style={{ fontSize: 12.5, color: '#94a3b8' }}>
         Built by <a href="https://bunlongheng.com" target="_blank" rel="noopener noreferrer" style={{ color: '#7c3aed', fontWeight: 600, textDecoration: 'none' }}>Bunlong</a>
       </span>
+      {/* Build version, centered between the credit and the socials, so you can
+          always tell which build you are looking at. */}
+      <span style={{ fontSize: 11.5, color: '#b6bfcc', fontWeight: 600, letterSpacing: '0.03em', fontVariantNumeric: 'tabular-nums' }}>
+        v{__APP_VERSION__}
+      </span>
+
       <div style={{ display: 'flex', gap: 8 }}>
         {LINKS.map(l => (
           <a key={l.label} className="sf-ico" href={l.href} target="_blank" rel="noopener noreferrer" title={l.label} aria-label={l.label}

@@ -1,53 +1,226 @@
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, useReactFlow, Position } from '@xyflow/react'
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useInternalNode, useReactFlow, Position } from '@xyflow/react'
 
-// ─── Floating edge geometry ─────────────────────────────────────────────────
-// Connect each edge at the point on the node border NEAREST the other node, so
-// edges always take the shortest, cleanest path instead of wrapping right-to-left.
+// ─── Edge geometry ────────────────────────────────────────────────────────────
+// Edges attach to a face of the box, spread evenly across it and centered: one
+// edge lands dead center, two sit symmetrically either side of center, three or
+// more keep the same even spacing. Which face is chosen per edge, from the
+// direction of the partner, so things to the right attach on the right and
+// things below attach on the bottom.
+//
+// Spread points beat one shared anchor: five lines converging on a single spot
+// is a knot, and it also piles every step marker on top of the same pixel.
 
-function getNodeIntersection(node, target) {
-  const { width: w, height: h } = node.measured
-  const pos = node.internals.positionAbsolute
-  const tpos = target.internals.positionAbsolute
-  const w2 = w / 2, h2 = h / 2
-  const x2 = pos.x + w2, y2 = pos.y + h2
-  const x1 = tpos.x + target.measured.width / 2
-  const y1 = tpos.y + target.measured.height / 2
-  const xx1 = (x1 - x2) / (2 * w2) - (y1 - y2) / (2 * h2)
-  const yy1 = (x1 - x2) / (2 * w2) + (y1 - y2) / (2 * h2)
-  const a = 1 / (Math.abs(xx1) + Math.abs(yy1) || 1)
-  const xx3 = a * xx1, yy3 = a * yy1
-  return { x: w2 * (xx3 + yy3) + x2, y: h2 * (-xx3 + yy3) + y2 }
+// A pair of boxes on the same axis gets a straight connector - lining them up was
+// deliberate and the diagram should show it. "On the same axis" is proportional:
+// the off-axis drift has to be within 5% of how far apart they are, so a long run
+// tolerates a few pixels of slop while two boxes close together have to be
+// genuinely square. ALIGN_TOL is the floor, so an exactly snapped pair reads
+// straight even when they nearly touch.
+const ALIGN_TOL = 8
+const ALIGN_RATIO = 0.05
+const MAX_GAP = 44 // widest spacing between neighbouring attach points on a face
+
+const onAxis = (drift, span) => drift <= ALIGN_TOL || drift <= span * ALIGN_RATIO
+
+const centerOf = n => ({
+  x: n.internals.positionAbsolute.x + n.measured.width / 2,
+  y: n.internals.positionAbsolute.y + n.measured.height / 2,
+})
+
+// Which face of `from` faces `to` - the dominant axis between their centers.
+function sideFor(from, to) {
+  const dx = to.x - from.x, dy = to.y - from.y
+  return Math.abs(dx) >= Math.abs(dy)
+    ? (dx >= 0 ? Position.Right : Position.Left)
+    : (dy >= 0 ? Position.Bottom : Position.Top)
 }
 
-function getEdgePosition(node, p) {
-  const x = node.internals.positionAbsolute.x
-  const y = node.internals.positionAbsolute.y
-  const { width: w, height: h } = node.measured
-  const px = Math.round(p.x), py = Math.round(p.y)
-  if (px <= Math.round(x) + 1) return Position.Left
-  if (px >= Math.round(x + w) - 1) return Position.Right
-  if (py <= Math.round(y) + 1) return Position.Top
-  if (py >= Math.round(y + h) - 1) return Position.Bottom
-  return Position.Top
+// Where THIS edge attaches to `node`, given everything else sharing that face.
+// Peers are ordered by where their far end sits along the face, so neighbouring
+// lines never cross on their way in.
+function attachPoint(node, nodeId, otherNode, edgeId, edges, nodeOf) {
+  const c = centerOf(node)
+  const side = sideFor(c, centerOf(otherNode))
+  const horizontal = side === Position.Left || side === Position.Right
+
+  const peers = []
+  for (const e of edges) {
+    const farId = e.source === nodeId ? e.target : e.target === nodeId ? e.source : null
+    if (!farId || farId === nodeId) continue
+    const far = nodeOf(farId)
+    if (!far?.measured?.width) continue
+    const fc = centerOf(far)
+    if (sideFor(c, fc) !== side) continue
+    peers.push({ id: e.id, along: horizontal ? fc.y : fc.x })
+  }
+  peers.sort((a, b) => a.along - b.along || (a.id < b.id ? -1 : 1))
+
+  const n = Math.max(1, peers.length)
+  const idx = Math.max(0, peers.findIndex(p => p.id === edgeId))
+  const face = horizontal ? node.measured.height : node.measured.width
+  const gap = Math.min(face / (n + 1), MAX_GAP)
+  const offset = (idx - (n - 1) / 2) * gap // 1 edge -> 0, dead center
+
+  const w2 = node.measured.width / 2, h2 = node.measured.height / 2
+  if (side === Position.Right) return { x: c.x + w2, y: c.y + offset, side, alone: n === 1 }
+  if (side === Position.Left) return { x: c.x - w2, y: c.y + offset, side, alone: n === 1 }
+  if (side === Position.Bottom) return { x: c.x + offset, y: c.y + h2, side, alone: n === 1 }
+  return { x: c.x + offset, y: c.y - h2, side, alone: n === 1 }
+}
+
+
+// ─── Obstacle-aware routing ───────────────────────────────────────────────────
+// Aligning nodes onto shared rows makes most connectors straight, but it also
+// means a long run can pass clean THROUGH the boxes sitting between its two
+// ends. So the route is built as a polyline, every segment is tested against
+// the other nodes, and when one is blocked the middle of the route slides to a
+// lane that is clear.
+const LANE = 26        // clearance kept between a routed line and a box
+const HIT_PAD = 4      // a line grazing a border is not a crossing
+
+const blocks = (x1, y1, x2, y2, rects) => rects.some(r => {
+  const rx1 = r.x - HIT_PAD, ry1 = r.y - HIT_PAD
+  const rx2 = r.x + r.w + HIT_PAD, ry2 = r.y + r.h + HIT_PAD
+  if (y1 === y2) return y1 > ry1 && y1 < ry2 && Math.max(x1, x2) > rx1 && Math.min(x1, x2) < rx2
+  if (x1 === x2) return x1 > rx1 && x1 < rx2 && Math.max(y1, y2) > ry1 && Math.min(y1, y2) < ry2
+  // diagonal (only the straight-run case) - sample it
+  for (let t = 0; t <= 1; t += 0.02) {
+    const x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t
+    if (x > rx1 && x < rx2 && y > ry1 && y < ry2) return true
+  }
+  return false
+})
+
+const clearPolyline = (pts, rects) => {
+  for (let i = 1; i < pts.length; i++) {
+    if (blocks(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, rects)) return false
+  }
+  return true
+}
+
+// Lanes to try for the middle of the route: the natural midpoint first, then
+// just clear of each box's edges, nearest first.
+//
+// `own` is the edge's own two boxes. They are not obstacles - the route starts
+// and ends on their borders - but the MIDDLE of the route must still not sit
+// inside them, or the line doubles back and crosses the box it just left. That
+// is invisible to the obstacle test, which excludes both endpoints by design.
+const lanes = (mid, rects, axis, own = []) => {
+  const out = [mid]
+  for (const r of rects) {
+    if (axis === 'x') { out.push(r.x - LANE, r.x + r.w + LANE) }
+    else { out.push(r.y - LANE, r.y + r.h + LANE) }
+  }
+  const insideOwn = c => own.some(r => axis === 'x'
+    ? c > r.x - HIT_PAD && c < r.x + r.w + HIT_PAD
+    : c > r.y - HIT_PAD && c < r.y + r.h + HIT_PAD)
+  return [...new Set(out)]
+    .filter(c => !insideOwn(c))
+    .sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid))
+}
+
+// When two boxes share a row, no choice of middle helps - the whole run lives on
+// that row and passes through whatever sits between them. The way out is to
+// leave through the TOP or BOTTOM face instead and travel in a clear lane above
+// or below the row. Mirrored for two boxes sharing a column.
+function detour(sRect, tRect, rects, vertical) {
+  const sc = { x: sRect.x + sRect.w / 2, y: sRect.y + sRect.h / 2 }
+  const tc = { x: tRect.x + tRect.w / 2, y: tRect.y + tRect.h / 2 }
+  for (const before of [true, false]) {
+    const s = vertical
+      ? { x: before ? sRect.x : sRect.x + sRect.w, y: sc.y }
+      : { x: sc.x, y: before ? sRect.y : sRect.y + sRect.h }
+    const t = vertical
+      ? { x: before ? tRect.x : tRect.x + tRect.w, y: tc.y }
+      : { x: tc.x, y: before ? tRect.y : tRect.y + tRect.h }
+    const mid = vertical ? (s.x + t.x) / 2 : (s.y + t.y) / 2
+    for (const c of lanes(mid, rects, vertical ? 'x' : 'y', [sRect, tRect])) {
+      const pts = vertical
+        ? [s, { x: c, y: s.y }, { x: c, y: t.y }, t]
+        : [s, { x: s.x, y: c }, { x: t.x, y: c }, t]
+      if (clearPolyline(pts, rects)) return pts
+    }
+  }
+  return null
+}
+
+// Orthogonal points for a pair of faces, with the middle placed at `c`.
+function routePoints(s, t, sHoriz, tHoriz, c) {
+  if (sHoriz && tHoriz) return [s, { x: c, y: s.y }, { x: c, y: t.y }, t]
+  if (!sHoriz && !tHoriz) return [s, { x: s.x, y: c }, { x: t.x, y: c }, t]
+  if (sHoriz) return [s, { x: t.x, y: s.y }, t]
+  return [s, { x: s.x, y: t.y }, t]
+}
+
+// Rounded corners, drawn by pulling back from each bend.
+function roundedPath(pts, r = 16) {
+  if (pts.length < 3) return `M${pts[0].x},${pts[0].y} L${pts[pts.length - 1].x},${pts[pts.length - 1].y}`
+  let d = `M${pts[0].x},${pts[0].y}`
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], cpt = pts[i + 1]
+    const r1 = Math.min(r, Math.hypot(b.x - a.x, b.y - a.y) / 2)
+    const r2 = Math.min(r, Math.hypot(cpt.x - b.x, cpt.y - b.y) / 2)
+    const rr = Math.min(r1, r2)
+    const inX = b.x + (a.x - b.x === 0 ? 0 : Math.sign(a.x - b.x) * rr)
+    const inY = b.y + (a.y - b.y === 0 ? 0 : Math.sign(a.y - b.y) * rr)
+    const outX = b.x + (cpt.x - b.x === 0 ? 0 : Math.sign(cpt.x - b.x) * rr)
+    const outY = b.y + (cpt.y - b.y === 0 ? 0 : Math.sign(cpt.y - b.y) * rr)
+    d += ` L${inX},${inY} Q${b.x},${b.y} ${outX},${outY}`
+  }
+  const last = pts[pts.length - 1]
+  d += ` L${last.x},${last.y}`
+  return d
 }
 
 // Edge whose line is a gradient from the SOURCE node's color to the TARGET
 // node's color, connected at the nearest borders. The label badge sits at the
 // midpoint; the Steps chip is a chip inside that badge.
 export function GradientEdge({
-  id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, data, label,
+  id, source, target, sourceX, sourceY, targetX, targetY, markerEnd, data, label,
 }) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
   const { getNodes, getEdges } = useReactFlow()
+  // Stem direction needs the OTHER nodes' geometry, and useInternalNode only
+  // covers this edge's two ends, so measured sizes come off the node list.
+  const internalById = id => {
+    const n = getNodes().find(x => x.id === id)
+    return n?.measured?.width
+      ? { measured: n.measured, internals: { positionAbsolute: n.position } }
+      : null
+  }
 
-  let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY, sp = sourcePosition, tp = targetPosition
+  const allEdges = getEdges()
+  // Every other service box is something this edge must not run through.
+  const obstacles = getNodes()
+    .filter(n => n.type === 'awsNode' && n.id !== source && n.id !== target && n.measured?.width && n.position)
+    .map(n => ({ x: n.position.x, y: n.position.y, w: n.measured.width, h: n.measured.height }))
+  let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY
+  let sSide = Position.Right, tSide = Position.Left
+  let aligned = false
   if (sourceNode?.measured?.width && targetNode?.measured?.width) {
-    const si = getNodeIntersection(sourceNode, targetNode)
-    const ti = getNodeIntersection(targetNode, sourceNode)
-    sx = si.x; sy = si.y; tx = ti.x; ty = ti.y
-    sp = getEdgePosition(sourceNode, si)
-    tp = getEdgePosition(targetNode, ti)
+    const nodeOf = nid => (nid === source ? sourceNode : nid === target ? targetNode : internalById(nid))
+    const sp2 = attachPoint(sourceNode, source, targetNode, id, allEdges, nodeOf)
+    const tp2 = attachPoint(targetNode, target, sourceNode, id, allEdges, nodeOf)
+    sx = sp2.x; sy = sp2.y; sSide = sp2.side
+    tx = tp2.x; ty = tp2.y; tSide = tp2.side
+
+    // Straight run for a pair that lines up - but only when neither face is
+    // sharing slots, otherwise forcing this one to center would collide with a
+    // neighbour's slot.
+    if (sp2.alone && tp2.alone) {
+      const sc = centerOf(sourceNode), tc = centerOf(targetNode)
+      const driftY = Math.abs(sc.y - tc.y), driftX = Math.abs(sc.x - tc.x)
+      if (driftX >= driftY && onAxis(driftY, driftX)) {
+        aligned = true
+        const y = (sc.y + tc.y) / 2
+        sy = y; ty = y
+      } else if (onAxis(driftX, driftY)) {
+        aligned = true
+        const x = (sc.x + tc.x) / 2
+        sx = x; tx = x
+      }
+    }
   }
 
   // Parallel edges between the same node pair (e.g. a request + its response loop)
@@ -81,9 +254,59 @@ export function GradientEdge({
     const mt = 1 - t
     labelX = mt * mt * sx + 2 * mt * t * cx + t * t * tx
     labelYRaw = mt * mt * sy + 2 * mt * t * cy + t * t * ty
+  } else if (aligned && !blocks(sx, sy, tx, ty, obstacles)) {
+    // Lined up AND nothing in the way: straight line, edge to facing edge.
+    path = `M${sx},${sy} L${tx},${ty}`
+    labelX = (sx + tx) / 2
+    labelYRaw = (sy + ty) / 2
+  } else if (obstacles.length) {
+    // Build the route as a polyline so each leg can be tested, and slide the
+    // middle into the nearest clear lane. Falls back to the plain elbow only
+    // when nothing is clear, which keeps a dense graph readable instead of
+    // sending a line on a long detour.
+    const sHoriz = sSide === Position.Left || sSide === Position.Right
+    const tHoriz = tSide === Position.Left || tSide === Position.Right
+    const S = { x: sx, y: sy }, T = { x: tx, y: ty }
+    const axis = sHoriz && tHoriz ? 'x' : (!sHoriz && !tHoriz ? 'y' : null)
+    const sRect = { x: sourceNode.internals.positionAbsolute.x, y: sourceNode.internals.positionAbsolute.y, w: sourceNode.measured.width, h: sourceNode.measured.height }
+    const tRect = { x: targetNode.internals.positionAbsolute.x, y: targetNode.internals.positionAbsolute.y, w: targetNode.measured.width, h: targetNode.measured.height }
+    let pts = null
+    if (axis) {
+      const mid = axis === 'x' ? (sx + tx) / 2 : (sy + ty) / 2
+      for (const c of lanes(mid, obstacles, axis, [sRect, tRect])) {
+        const cand = routePoints(S, T, sHoriz, tHoriz, c)
+        if (clearPolyline(cand, obstacles)) { pts = cand; break }
+      }
+      if (!pts) {
+        // Nothing clear on these faces - go over the top (or round the side).
+        pts = detour(sRect, tRect, obstacles, axis === 'y')
+          || detour(sRect, tRect, obstacles, axis !== 'y')
+          || routePoints(S, T, sHoriz, tHoriz, mid)
+      }
+    } else {
+      // An L between a horizontal face and a vertical one - try it, then the
+      // other way round, then give up on the L and go over/around instead.
+      const a = routePoints(S, T, sHoriz, tHoriz, 0)
+      const b = sHoriz ? [S, { x: S.x, y: T.y }, T] : [S, { x: T.x, y: S.y }, T]
+      pts = clearPolyline(a, obstacles) ? a
+        : clearPolyline(b, obstacles) ? b
+          : (detour(sRect, tRect, obstacles, false) || detour(sRect, tRect, obstacles, true) || a)
+    }
+    path = roundedPath(pts)
+    const m = pts[Math.floor(pts.length / 2)]
+    const m2 = pts[Math.ceil(pts.length / 2)] || m
+    labelX = (m.x + m2.x) / 2
+    labelYRaw = (m.y + m2.y) / 2
   } else {
-    ;[path, labelX, labelYRaw] = getBezierPath({
-      sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition: sp, targetPosition: tp,
+    // Rounded elbow: leave the box perpendicular to the face the stem came out
+    // of, make ONE turn, and arrive perpendicular to the target's face. Because
+    // every edge off a node shares the same anchor, fan-outs still read as one
+    // stem splitting - but each branch now meets its box square instead of
+    // curving into a corner.
+    ;[path, labelX, labelYRaw] = getSmoothStepPath({
+      sourceX: sx, sourceY: sy, sourcePosition: sSide,
+      targetX: tx, targetY: ty, targetPosition: tSide,
+      borderRadius: 18,
     })
   }
   // If the label lands on top of a service node, lift it just above that node so
