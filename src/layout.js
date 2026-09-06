@@ -160,6 +160,7 @@ function buildLayout(nodes, edges, rankdir, canvas, tucked) {
     cols.get(key)?.push(item)
   }
 
+  straighten(cols, centers, edges)
   wrapIntoBands(cols, centers, canvas)
   separate(cols, centers)
 
@@ -181,6 +182,53 @@ const SLOT = NODE_H + NODE_SEP           // one vertical step in a column
 const MIN_GAP = NODE_H + 40              // closest 2 node centers may ever sit
 
 const isFree = (y, ys) => ys.every(o => Math.abs(o - y) >= MIN_GAP)
+
+// ─── Straighten ───────────────────────────────────────────────────────────────
+// Dagre lines a chain up, then re-slotting each column into step order pulls it
+// apart again - which is why almost every edge came out as an elbow. This pulls
+// it back: walking column by column, a node slides onto the row of whatever
+// feeds it, whenever that row is free. An aligned pair draws as one straight
+// run instead of a curve, which is the whole look we are after.
+//
+// It only ever moves a node into an EMPTY slot, so it cannot create an overlap,
+// and separate() still runs after it as the guarantee.
+function straighten(cols, centers, edges) {
+  const colKeys = [...cols.keys()].sort((a, b) => a - b)
+  const colOf = new Map()
+  colKeys.forEach((k, i) => cols.get(k).forEach(it => colOf.set(it.n.id, i)))
+
+  const partners = (id, pick, other) => edges
+    .filter(e => e[pick] === id && centers.has(e[other]))
+    .map(e => e[other])
+
+  const tryAlign = (items, it, sources) => {
+    if (!sources.length) return
+    const ys = sources.map(s => centers.get(s).y).sort((a, b) => a - b)
+    const want = ys[Math.floor(ys.length / 2)] // median row of whatever feeds it
+    const cur = centers.get(it.n.id)
+    if (Math.abs(want - cur.y) < 0.5) return
+    const clash = items.some(o => o.n.id !== it.n.id && Math.abs(centers.get(o.n.id).y - want) < MIN_GAP)
+    if (!clash) centers.set(it.n.id, { ...cur, y: want })
+  }
+
+  for (let pass = 0; pass < 2; pass++) {
+    // Forward: pull a node onto the row of its upstream neighbours.
+    for (let i = 1; i < colKeys.length; i++) {
+      const items = cols.get(colKeys[i])
+      for (const it of items) {
+        tryAlign(items, it, partners(it.n.id, 'target', 'source').filter(s => colOf.get(s) < i))
+      }
+    }
+    // Backward: a node whose downstream neighbours all sit on one row follows
+    // them, which straightens the tail of a chain the forward pass cannot reach.
+    for (let i = colKeys.length - 2; i >= 0; i--) {
+      const items = cols.get(colKeys[i])
+      for (const it of items) {
+        tryAlign(items, it, partners(it.n.id, 'source', 'target').filter(t => colOf.get(t) > i))
+      }
+    }
+  }
+}
 
 // Last line of defence: nothing may ever overlap. Everything above tries to
 // place nodes cleanly, but a single overlap ruins a diagram, so each column is

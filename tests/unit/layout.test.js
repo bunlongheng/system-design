@@ -113,3 +113,35 @@ describe("layoutElements column alignment", () => {
     expect(centerX("s3")).toBeCloseTo(centerX("microservices"), 5);
   });
 });
+
+describe("layoutElements straightness", () => {
+  // The look we want from Arrange: as many connectors as possible running dead
+  // straight, because an aligned pair draws as one line instead of an elbow.
+  // Dagre lines chains up and the step-order re-slot used to pull them apart -
+  // this guards the pass that puts them back.
+  const CHAIN = {
+    nodes: ["user", "tailscale", "linode", "nginx", "pm2", "nextjs", "engine", "postgres", "telegram", "alpaca"],
+    edges: [
+      ["user", "tailscale"], ["tailscale", "nginx"], ["linode", "nginx"], ["nginx", "nextjs"],
+      ["pm2", "nextjs"], ["pm2", "engine"], ["nextjs", "postgres"], ["engine", "postgres"],
+      ["engine", "alpaca"], ["engine", "telegram"], ["alpaca", "postgres"], ["user", "telegram"],
+    ],
+  };
+
+  it("aligns most connected pairs onto a shared row or column", () => {
+    const nodes = CHAIN.nodes.map(id => ({ id, type: "awsNode", data: { id }, measured: { width: 150, height: 113 } }));
+    const edges = CHAIN.edges.map(([source, target], i) => ({ id: `e${i}`, source, target }));
+    const out = layoutElements(nodes, edges, { canvas: { width: 1440, height: 820 } });
+
+    const c = Object.fromEntries(out.map(n => [n.id, {
+      x: n.position.x + n.measured.width / 2,
+      y: n.position.y + n.measured.height / 2,
+    }]));
+    const straight = CHAIN.edges.filter(([s, t]) =>
+      Math.abs(c[s].x - c[t].x) < 2 || Math.abs(c[s].y - c[t].y) < 2).length;
+
+    // Was 1 of 12 before the straighten pass.
+    expect(straight).toBeGreaterThanOrEqual(6);
+    expect(overlaps(out)).toEqual([]);
+  });
+});
