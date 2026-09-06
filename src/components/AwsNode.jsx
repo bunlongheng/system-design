@@ -45,11 +45,13 @@ export const MarkerNode = memo(function MarkerNode({ data }) {
   // more reliable for a node the app adds on the fly.
   const connector = down ? (
     <svg
-      width="12" height="70" viewBox="0 0 12 70"
+      width="12" height="56" viewBox="0 0 12 56"
       style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: '100%', overflow: 'visible' }}
     >
-      <line className="sd-marker-line" x1="6" y1="0" x2="6" y2="60" stroke={color} strokeWidth="1.5" />
-      <path d="M2.5 60 L6 67 L9.5 60" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      {/* The pill sits 60px above the node, so the head stops at 51 - the arrow
+          lands just outside the box instead of poking through the border. */}
+      <line className="sd-marker-line" x1="6" y1="0" x2="6" y2="44" stroke={color} strokeWidth="1.5" />
+      <path d="M2.5 44 L6 51 L9.5 44" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ) : (
     <svg
