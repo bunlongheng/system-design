@@ -41,21 +41,10 @@ function buildEdges(rawEdges) {
   }))
 }
 
-// Datastores that can be the "source of truth", most-authoritative first: primary
-// DBs, then object storage, then cache/search. The single "Destination" marker
-// lands on the highest-priority one present - never a queue, cache-as-endpoint, or
-// a plain leaf service.
-const SOURCE_OF_TRUTH = [
-  'dynamo', 'dynamodb', 'rds', 'postgres', 'mysql', 'aurora', 'spanner', 'cockroach',
-  'cassandra', 'keyspaces', 'mongodb', 'bigtable',
-  's3', 'storage',
-  'redis', 'elasticache', 'memcached', 'opensearch', 'elasticsearch',
-]
-
-// Exactly ONE "Start here" and ONE "Destination" per diagram - never more, never
-// both on the same node. Start = the source of step 1 (the first action, robust
-// even for closed loops). Destination = the top-priority datastore (source of
-// truth where data lives). Rendered as separate pill nodes, toggled from header.
+// Exactly ONE "Start here" pill per diagram - the source of step 1, which is
+// robust even for closed loops. There is deliberately no Destination pill: it
+// guessed at an endpoint the diagram never claimed, and where a flow BEGINS is
+// the only hint a reader actually needs.
 function buildMarkers(nodes, edges) {
   if (!nodes.length) return { nodes: [], edges: [] }
   const byId = id => nodes.find(n => n.id === id)
@@ -65,20 +54,12 @@ function buildMarkers(nodes, edges) {
   let startId = edges[0] && edges[0].source && byId(edges[0].source) ? edges[0].source : null
   if (!startId) startId = (nodes.find(n => !hasIncoming.has(n.id)) || nodes[0]).id
 
-  // Destination: single top-priority datastore, but never the Start node.
-  let endId = SOURCE_OF_TRUTH.find(id => byId(id) && id !== startId) || null
-
   const mNodes = []
   const s = byId(startId)
   if (s) {
     const p = s.position || { x: 0, y: 0 }
     // +37 vertically centers the ~110px node against the 36px marker pill.
     mNodes.push({ id: `__start_${startId}`, type: 'marker', position: { x: p.x - 200, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'start' }, draggable: false, selectable: false })
-  }
-  const e = endId && byId(endId)
-  if (e) {
-    const p = e.position || { x: 0, y: 0 }
-    mNodes.push({ id: `__end_${endId}`, type: 'marker', position: { x: p.x + 210, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'end' }, draggable: false, selectable: false })
   }
   return { nodes: mNodes, edges: [] }
 }

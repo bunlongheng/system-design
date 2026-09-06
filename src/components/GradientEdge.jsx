@@ -1,24 +1,24 @@
-import { BaseEdge, EdgeLabelRenderer, useInternalNode, useReactFlow } from '@xyflow/react'
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useInternalNode, useReactFlow, Position } from '@xyflow/react'
 
-// ─── Brace edge geometry ──────────────────────────────────────────────────────
-// Every edge LEAVING a node departs from one shared point on that node's border,
-// and every edge ARRIVING at a node lands on one shared point. Fan-outs then read
-// as a brace - one stem splitting into branches - instead of a spray of lines
-// touching a box at five different places.
+// ─── Edge geometry ────────────────────────────────────────────────────────────
+// Edges attach to a face of the box, spread evenly across it and centered: one
+// edge lands dead center, two sit symmetrically either side of center, three or
+// more keep the same even spacing. Which face is chosen per edge, from the
+// direction of the partner, so things to the right attach on the right and
+// things below attach on the bottom.
 //
-// The shared point is the border crossing in the AVERAGE direction of that node's
-// partners, so a node feeding things to its right anchors on its right edge, and
-// one feeding upward anchors on top. It falls out of the graph, nothing is hard
-// coded to left-to-right.
+// Spread points beat one shared anchor: five lines converging on a single spot
+// is a knot, and it also piles every step marker on top of the same pixel.
 
-// Two boxes that sit on the same axis get a straight connector instead of a
-// brace curve - lining them up was a deliberate act and the diagram should show
-// it. "On the same axis" is proportional: the off-axis drift has to be within 5%
-// of how far apart they are, so a long run tolerates a few pixels of slop while
-// two boxes close together have to be genuinely square. ALIGN_TOL is the floor,
-// so a pair snapped exactly always reads straight even when they nearly touch.
+// A pair of boxes on the same axis gets a straight connector - lining them up was
+// deliberate and the diagram should show it. "On the same axis" is proportional:
+// the off-axis drift has to be within 5% of how far apart they are, so a long run
+// tolerates a few pixels of slop while two boxes close together have to be
+// genuinely square. ALIGN_TOL is the floor, so an exactly snapped pair reads
+// straight even when they nearly touch.
 const ALIGN_TOL = 8
 const ALIGN_RATIO = 0.05
+const MAX_GAP = 44 // widest spacing between neighbouring attach points on a face
 
 const onAxis = (drift, span) => drift <= ALIGN_TOL || drift <= span * ALIGN_RATIO
 
@@ -27,41 +27,45 @@ const centerOf = n => ({
   y: n.internals.positionAbsolute.y + n.measured.height / 2,
 })
 
-// Where the ray leaving the node center in direction (dx, dy) crosses the border.
-function borderPoint(node, dx, dy) {
-  const c = centerOf(node)
-  const w2 = node.measured.width / 2
-  const h2 = node.measured.height / 2
-  const ax = Math.abs(dx), ay = Math.abs(dy)
-  if (!ax && !ay) return { ...c, ux: 1, uy: 0 }
-  // Scale the ray until it touches whichever side it reaches first.
-  const t = Math.min(ax ? w2 / ax : Infinity, ay ? h2 / ay : Infinity)
-  const len = Math.hypot(dx, dy) || 1
-  return { x: c.x + dx * t, y: c.y + dy * t, ux: dx / len, uy: dy / len }
+// Which face of `from` faces `to` - the dominant axis between their centers.
+function sideFor(from, to) {
+  const dx = to.x - from.x, dy = to.y - from.y
+  return Math.abs(dx) >= Math.abs(dy)
+    ? (dx >= 0 ? Position.Right : Position.Left)
+    : (dy >= 0 ? Position.Bottom : Position.Top)
 }
 
-// The direction a node's stem points: the average heading to everything it talks
-// to on that side. `pick` pulls the far end of each edge.
-function stemDirection(node, edges, nodeOf, pick) {
+// Where THIS edge attaches to `node`, given everything else sharing that face.
+// Peers are ordered by where their far end sits along the face, so neighbouring
+// lines never cross on their way in.
+function attachPoint(node, nodeId, otherNode, edgeId, edges, nodeOf) {
   const c = centerOf(node)
-  let dx = 0, dy = 0
+  const side = sideFor(c, centerOf(otherNode))
+  const horizontal = side === Position.Left || side === Position.Right
+
+  const peers = []
   for (const e of edges) {
-    const other = nodeOf(pick(e))
-    if (!other?.measured?.width) continue
-    const oc = centerOf(other)
-    const vx = oc.x - c.x, vy = oc.y - c.y
-    const l = Math.hypot(vx, vy) || 1
-    dx += vx / l; dy += vy / l
+    const farId = e.source === nodeId ? e.target : e.target === nodeId ? e.source : null
+    if (!farId || farId === nodeId) continue
+    const far = nodeOf(farId)
+    if (!far?.measured?.width) continue
+    const fc = centerOf(far)
+    if (sideFor(c, fc) !== side) continue
+    peers.push({ id: e.id, along: horizontal ? fc.y : fc.x })
   }
-  return { dx, dy }
-}
+  peers.sort((a, b) => a.along - b.along || (a.id < b.id ? -1 : 1))
 
-// Point on a cubic bezier at t - used for the label and the step marker so both
-// sit ON the drawn curve rather than near it.
-function bezierAt(t, x0, y0, x1, y1, x2, y2, x3, y3) {
-  const u = 1 - t
-  const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
-  return { x: a * x0 + b * x1 + c * x2 + d * x3, y: a * y0 + b * y1 + c * y2 + d * y3 }
+  const n = Math.max(1, peers.length)
+  const idx = Math.max(0, peers.findIndex(p => p.id === edgeId))
+  const face = horizontal ? node.measured.height : node.measured.width
+  const gap = Math.min(face / (n + 1), MAX_GAP)
+  const offset = (idx - (n - 1) / 2) * gap // 1 edge -> 0, dead center
+
+  const w2 = node.measured.width / 2, h2 = node.measured.height / 2
+  if (side === Position.Right) return { x: c.x + w2, y: c.y + offset, side, alone: n === 1 }
+  if (side === Position.Left) return { x: c.x - w2, y: c.y + offset, side, alone: n === 1 }
+  if (side === Position.Bottom) return { x: c.x + offset, y: c.y + h2, side, alone: n === 1 }
+  return { x: c.x + offset, y: c.y - h2, side, alone: n === 1 }
 }
 
 // Edge whose line is a gradient from the SOURCE node's color to the TARGET
@@ -84,40 +88,30 @@ export function GradientEdge({
 
   const allEdges = getEdges()
   let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY
-  let sux = 1, suy = 0, tux = -1, tuy = 0
+  let sSide = Position.Right, tSide = Position.Left
   let aligned = false
   if (sourceNode?.measured?.width && targetNode?.measured?.width) {
-    const nodeOf = idOf => (idOf === source ? sourceNode : idOf === target ? targetNode : internalById(idOf))
-    const out = allEdges.filter(e => e.source === source)
-    const inc = allEdges.filter(e => e.target === target)
-    let sd = stemDirection(sourceNode, out, nodeOf, e => e.target)
-    let td = stemDirection(targetNode, inc, nodeOf, e => e.source)
-    // A node whose partners cancel out (one left, one right) has no meaningful
-    // average - fall back to pointing straight at the other end of this edge.
-    const sc = centerOf(sourceNode), tc = centerOf(targetNode)
-    if (Math.hypot(sd.dx, sd.dy) < 0.15) sd = { dx: tc.x - sc.x, dy: tc.y - sc.y }
-    if (Math.hypot(td.dx, td.dy) < 0.15) td = { dx: sc.x - tc.x, dy: sc.y - tc.y }
-    // Aligned pairs bypass the stem averaging entirely - the connector runs flat
-    // along the shared axis from one facing edge to the other.
-    const driftY = Math.abs(sc.y - tc.y)
-    const driftX = Math.abs(sc.x - tc.x)
-    if (driftX >= driftY && onAxis(driftY, driftX)) {
-      aligned = true
-      const y = (sc.y + tc.y) / 2
-      const dir = tc.x > sc.x ? 1 : -1
-      sx = sc.x + dir * sourceNode.measured.width / 2; sy = y
-      tx = tc.x - dir * targetNode.measured.width / 2; ty = y
-    } else if (onAxis(driftX, driftY)) {
-      aligned = true
-      const x = (sc.x + tc.x) / 2
-      const dir = tc.y > sc.y ? 1 : -1
-      sx = x; sy = sc.y + dir * sourceNode.measured.height / 2
-      tx = x; ty = tc.y - dir * targetNode.measured.height / 2
-    } else {
-      const sp2 = borderPoint(sourceNode, sd.dx, sd.dy)
-      const tp2 = borderPoint(targetNode, td.dx, td.dy)
-      sx = sp2.x; sy = sp2.y; sux = sp2.ux; suy = sp2.uy
-      tx = tp2.x; ty = tp2.y; tux = tp2.ux; tuy = tp2.uy
+    const nodeOf = nid => (nid === source ? sourceNode : nid === target ? targetNode : internalById(nid))
+    const sp2 = attachPoint(sourceNode, source, targetNode, id, allEdges, nodeOf)
+    const tp2 = attachPoint(targetNode, target, sourceNode, id, allEdges, nodeOf)
+    sx = sp2.x; sy = sp2.y; sSide = sp2.side
+    tx = tp2.x; ty = tp2.y; tSide = tp2.side
+
+    // Straight run for a pair that lines up - but only when neither face is
+    // sharing slots, otherwise forcing this one to center would collide with a
+    // neighbour's slot.
+    if (sp2.alone && tp2.alone) {
+      const sc = centerOf(sourceNode), tc = centerOf(targetNode)
+      const driftY = Math.abs(sc.y - tc.y), driftX = Math.abs(sc.x - tc.x)
+      if (driftX >= driftY && onAxis(driftY, driftX)) {
+        aligned = true
+        const y = (sc.y + tc.y) / 2
+        sy = y; ty = y
+      } else if (onAxis(driftX, driftY)) {
+        aligned = true
+        const x = (sc.x + tc.x) / 2
+        sx = x; tx = x
+      }
     }
   }
 
@@ -129,7 +123,6 @@ export function GradientEdge({
   const parallel = siblings.length > 1
 
   let path, labelX, labelYRaw
-  let c1x, c1y, c2x, c2y, cubic = false
   if (parallel) {
     const n = siblings.length
     const idx = siblings.slice().sort((a, b) => (a.id < b.id ? -1 : 1)).findIndex(e => e.id === id)
@@ -159,17 +152,16 @@ export function GradientEdge({
     labelX = (sx + tx) / 2
     labelYRaw = (sy + ty) / 2
   } else {
-    // Leave along the source's stem, arrive along the target's, so branches peel
-    // off one shared stem and settle flat into the box - the mind-map brace.
-    const L = Math.hypot(tx - sx, ty - sy) || 1
-    const k = Math.min(180, Math.max(40, L * 0.45))
-    c1x = sx + sux * k; c1y = sy + suy * k
-    c2x = tx + tux * k; c2y = ty + tuy * k
-    path = `M${sx},${sy} C${c1x},${c1y} ${c2x},${c2y} ${tx},${ty}`
-    const m = bezierAt(0.5, sx, sy, c1x, c1y, c2x, c2y, tx, ty)
-    labelX = m.x
-    labelYRaw = m.y
-    cubic = true
+    // Rounded elbow: leave the box perpendicular to the face the stem came out
+    // of, make ONE turn, and arrive perpendicular to the target's face. Because
+    // every edge off a node shares the same anchor, fan-outs still read as one
+    // stem splitting - but each branch now meets its box square instead of
+    // curving into a corner.
+    ;[path, labelX, labelYRaw] = getSmoothStepPath({
+      sourceX: sx, sourceY: sy, sourcePosition: sSide,
+      targetX: tx, targetY: ty, targetPosition: tSide,
+      borderRadius: 18,
+    })
   }
   // If the label lands on top of a service node, lift it just above that node so
   // the text never overlaps a box.
@@ -200,21 +192,17 @@ export function GradientEdge({
       </defs>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={{ stroke: `url(#${gid})`, strokeWidth: 1.5 }} />
       {hasStep && (() => {
-        // The step number rides ON the line just short of the target, the way a
-        // mind map numbers its branches - not crammed inside the label pill.
-        // Everything arriving at one node shares an anchor, so markers placed at
-        // the same fraction would pile up there. Stagger them back along their
-        // own curves by arrival order.
-        const arriving = allEdges.filter(e => e.target === target)
-        const rank = arriving.findIndex(e => e.id === id)
-        const t = Math.max(0.62, 0.9 - Math.max(0, rank) * 0.07)
-        const p = cubic
-          ? bezierAt(t, sx, sy, c1x, c1y, c2x, c2y, tx, ty)
-          : { x: sx + (tx - sx) * t, y: sy + (ty - sy) * t }
+        // On its own edge's midpoint, nudged clear of the label pill. Anchoring
+        // it near the target instead would stack every marker on one spot,
+        // because all the edges arriving at a node share an anchor.
+        const dx = tx - sx, dy = ty - sy
+        const L = Math.hypot(dx, dy) || 1
+        const px = -dy / L, py = dx / L
+        const cx = labelX + px * 15, cy = labelY + py * 15
         return (
           <g className="sd-step-dot" pointerEvents="none">
-            <circle cx={p.x} cy={p.y} r={6.5} fill="#fff" stroke={c2} strokeWidth={1.5} />
-            <text x={p.x} y={p.y} fill={c2} fontSize={7.5} fontWeight={800}
+            <circle cx={cx} cy={cy} r={6.5} fill="#fff" stroke={c2} strokeWidth={1.5} />
+            <text x={cx} y={cy} fill={c2} fontSize={7.5} fontWeight={800}
               textAnchor="middle" dominantBaseline="central">{data.step}</text>
           </g>
         )
