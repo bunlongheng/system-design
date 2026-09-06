@@ -14,7 +14,7 @@ const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input, textarea, sel
 export function IndexView({
   toast, showToastMsg,
   search, setSearch,
-  user, canAI, isDemo,
+  user, canAI, isDemo, listError,
   showMenu, setShowMenu, menuRef,
   showDocs, setShowDocs,
   copiedLabel, onCopyFormat,
@@ -178,6 +178,24 @@ export function IndexView({
           </div>
         )}
 
+        {/* An unreachable API used to look exactly like "you have 1 diagram":
+            it fell through to the bundled sample and said nothing. Now it says
+            so, and the sample below carries no delete button. */}
+        {listError && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+            padding: '11px 14px', borderRadius: 10,
+            background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e',
+            fontSize: 13, fontWeight: 600,
+          }}>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span>Could not reach the API, so your saved diagrams are not listed. The sample below is bundled with the app, not saved.</span>
+          </div>
+        )}
+
         {filtered.length > 0 && (
           <div className="sd-grid sd-grid-demo" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
             {filtered.map(d => (
@@ -191,7 +209,7 @@ export function IndexView({
                 difficulty={d.difficulty}
                 onOpen={() => onOpen(d)}
                 onViewCode={() => onViewCode(d)}
-                onDelete={canAI ? () => onDeleteDiagram(d.id) : undefined}
+                onDelete={canAI && !d.sample ? () => onDeleteDiagram(d.id) : undefined}
               />
             ))}
           </div>

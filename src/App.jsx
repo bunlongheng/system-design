@@ -104,8 +104,11 @@ const defaultNodes = diagramData.nodes.map(n => ({ ...n, type: 'awsNode', data: 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 // Sample diagrams for index page (fallback when the API has none saved)
+// Shown only when the gallery has nothing real to show. `sample: true` marks it
+// as NOT a saved row: it has no database record, so it must never offer a delete
+// button - clicking one could only ever fail.
 const SEED = [
-  { id: 'ifttt', title: 'IFTTT System Design', data: diagramData, updatedAt: new Date().toISOString(), tags: ['AWS', 'Architecture'] },
+  { id: 'ifttt', title: 'IFTTT System Design', data: diagramData, updatedAt: new Date().toISOString(), tags: ['AWS', 'Architecture'], sample: true },
 ]
 
 export default function App() {
@@ -144,6 +147,7 @@ export default function App() {
   const [diagrams, setDiagrams] = useState(isDemo ? [] : SEED)
   const [loadingId, setLoadingId] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [listError, setListError] = useState(false) // gallery fetch failed
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [devBypass, setDevBypass] = useState(false)
@@ -210,9 +214,15 @@ export default function App() {
           tags: r.tags || [],
         }))
         // On /demo never show the IFTTT SEED sample - only real public demos.
+        setListError(false)
         setDiagrams(mapped.length ? mapped : (isDemo ? [] : SEED))
       })
-      .catch(() => setDiagrams(isDemo ? [] : SEED))
+      .catch(() => {
+        // An unreachable API used to look identical to "you have one diagram":
+        // it fell through to the sample and the gallery said nothing. Say it.
+        setListError(true)
+        setDiagrams(isDemo ? [] : SEED)
+      })
   }, [isDemo])
 
   useEffect(() => { loadDiagrams() }, [loadDiagrams])
@@ -607,7 +617,7 @@ export default function App() {
       <IndexView
         toast={toast} showToastMsg={showToastMsg}
         search={search} setSearch={setSearch}
-        user={user} canAI={canAI} isDemo={isDemo}
+        user={user} canAI={canAI} isDemo={isDemo} listError={listError}
         showMenu={showMenu} setShowMenu={setShowMenu} menuRef={menuRef}
         showDocs={showDocs} setShowDocs={setShowDocs}
         copiedLabel={copiedLabel} onCopyFormat={copyFormat}
