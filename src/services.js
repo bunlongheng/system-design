@@ -9,6 +9,7 @@ export const SERVICES = {
   kms:          { label: 'KMS',               sub: 'Token Encryption',   icon: '/icons/kms.svg',           color: '#de3951' },
   dynamo:       { label: 'DynamoDB',          sub: 'Token Store',        icon: '/icons/dynamodb.svg',      color: '#4050d0' },
   sfn:          { label: 'Step Functions',    sub: 'Multi-Action Flow',  icon: '/icons/stepfunctions.svg', color: '#e81a7e' },
+  insider:      { label: 'Insider Screener',  sub: 'SEC Form 4',         icon: '/icons/gen-insider.svg',   color: '#F5821F' },
   cloudwatch:   { label: 'CloudWatch',        sub: 'Monitoring',         icon: '/icons/cloudwatch.svg',    color: '#e81b7e' },
   cloudtrail:   { label: 'CloudTrail',        sub: 'Audit Logs',         icon: '/icons/cloudtrail.svg',    color: '#e7187d' },
   user:         { label: 'User',              sub: 'Client',             color: '#3b82f6', icon: '/icons/gen-user.svg' },
