@@ -473,7 +473,7 @@ export function DetailView({
            --c1/--c2 set inline. Appearance switches by wrapper mode class. */
         .sd-edge-badge {
           position: absolute; display: flex; align-items: center; gap: 4px;
-          padding: 2px 7px; border-radius: 999px;
+          padding: 3px 8px; border-radius: 999px;
           font-size: 8.5px; font-weight: 700; line-height: 1.35;
           letter-spacing: 0.01em; white-space: nowrap; pointer-events: none;
         }
@@ -497,15 +497,10 @@ export function DetailView({
         .sd-badge-plain .sd-edge-badge {
           color: #1e2733; border: 1.5px solid #c2c6cc; background: #e9ebee;
         }
-        /* Step number chip inside the badge - hidden until Steps toggle is on. */
-        .sd-step-chip { display: none; }
-        .sd-steps-on .sd-step-chip {
-          display: inline-flex; align-items: center; justify-content: center;
-          min-width: 13px; height: 13px; padding: 0 3px; border-radius: 999px;
-          font-size: 9px; font-weight: 800; background: #1c1e21; color: #fff;
-        }
-        /* On a dark badge the dark chip would vanish - flip it. */
-        .sd-badge-dark .sd-step-chip { background: #fff; color: #1c1e21; }
+        /* Step numbers ride ON the edge (drawn in GradientEdge), so the toggle
+           just shows or hides those markers. */
+        .sd-step-dot { display: none; }
+        .sd-steps-on .sd-step-dot { display: inline; }
         /* On phones the fixed-width side panels would crush the canvas, so drop
            them to full-width bottom sheets over the canvas instead. */
         @media (max-width: 640px) {

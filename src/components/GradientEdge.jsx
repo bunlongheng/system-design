@@ -1,53 +1,94 @@
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, useReactFlow, Position } from '@xyflow/react'
+import { BaseEdge, EdgeLabelRenderer, useInternalNode, useReactFlow } from '@xyflow/react'
 
-// ─── Floating edge geometry ─────────────────────────────────────────────────
-// Connect each edge at the point on the node border NEAREST the other node, so
-// edges always take the shortest, cleanest path instead of wrapping right-to-left.
+// ─── Brace edge geometry ──────────────────────────────────────────────────────
+// Every edge LEAVING a node departs from one shared point on that node's border,
+// and every edge ARRIVING at a node lands on one shared point. Fan-outs then read
+// as a brace - one stem splitting into branches - instead of a spray of lines
+// touching a box at five different places.
+//
+// The shared point is the border crossing in the AVERAGE direction of that node's
+// partners, so a node feeding things to its right anchors on its right edge, and
+// one feeding upward anchors on top. It falls out of the graph, nothing is hard
+// coded to left-to-right.
 
-function getNodeIntersection(node, target) {
-  const { width: w, height: h } = node.measured
-  const pos = node.internals.positionAbsolute
-  const tpos = target.internals.positionAbsolute
-  const w2 = w / 2, h2 = h / 2
-  const x2 = pos.x + w2, y2 = pos.y + h2
-  const x1 = tpos.x + target.measured.width / 2
-  const y1 = tpos.y + target.measured.height / 2
-  const xx1 = (x1 - x2) / (2 * w2) - (y1 - y2) / (2 * h2)
-  const yy1 = (x1 - x2) / (2 * w2) + (y1 - y2) / (2 * h2)
-  const a = 1 / (Math.abs(xx1) + Math.abs(yy1) || 1)
-  const xx3 = a * xx1, yy3 = a * yy1
-  return { x: w2 * (xx3 + yy3) + x2, y: h2 * (-xx3 + yy3) + y2 }
+const centerOf = n => ({
+  x: n.internals.positionAbsolute.x + n.measured.width / 2,
+  y: n.internals.positionAbsolute.y + n.measured.height / 2,
+})
+
+// Where the ray leaving the node center in direction (dx, dy) crosses the border.
+function borderPoint(node, dx, dy) {
+  const c = centerOf(node)
+  const w2 = node.measured.width / 2
+  const h2 = node.measured.height / 2
+  const ax = Math.abs(dx), ay = Math.abs(dy)
+  if (!ax && !ay) return { ...c, ux: 1, uy: 0 }
+  // Scale the ray until it touches whichever side it reaches first.
+  const t = Math.min(ax ? w2 / ax : Infinity, ay ? h2 / ay : Infinity)
+  const len = Math.hypot(dx, dy) || 1
+  return { x: c.x + dx * t, y: c.y + dy * t, ux: dx / len, uy: dy / len }
 }
 
-function getEdgePosition(node, p) {
-  const x = node.internals.positionAbsolute.x
-  const y = node.internals.positionAbsolute.y
-  const { width: w, height: h } = node.measured
-  const px = Math.round(p.x), py = Math.round(p.y)
-  if (px <= Math.round(x) + 1) return Position.Left
-  if (px >= Math.round(x + w) - 1) return Position.Right
-  if (py <= Math.round(y) + 1) return Position.Top
-  if (py >= Math.round(y + h) - 1) return Position.Bottom
-  return Position.Top
+// The direction a node's stem points: the average heading to everything it talks
+// to on that side. `pick` pulls the far end of each edge.
+function stemDirection(node, edges, nodeOf, pick) {
+  const c = centerOf(node)
+  let dx = 0, dy = 0
+  for (const e of edges) {
+    const other = nodeOf(pick(e))
+    if (!other?.measured?.width) continue
+    const oc = centerOf(other)
+    const vx = oc.x - c.x, vy = oc.y - c.y
+    const l = Math.hypot(vx, vy) || 1
+    dx += vx / l; dy += vy / l
+  }
+  return { dx, dy }
+}
+
+// Point on a cubic bezier at t - used for the label and the step marker so both
+// sit ON the drawn curve rather than near it.
+function bezierAt(t, x0, y0, x1, y1, x2, y2, x3, y3) {
+  const u = 1 - t
+  const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
+  return { x: a * x0 + b * x1 + c * x2 + d * x3, y: a * y0 + b * y1 + c * y2 + d * y3 }
 }
 
 // Edge whose line is a gradient from the SOURCE node's color to the TARGET
 // node's color, connected at the nearest borders. The label badge sits at the
 // midpoint; the Steps chip is a chip inside that badge.
 export function GradientEdge({
-  id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, data, label,
+  id, source, target, sourceX, sourceY, targetX, targetY, markerEnd, data, label,
 }) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
   const { getNodes, getEdges } = useReactFlow()
+  // Stem direction needs the OTHER nodes' geometry, and useInternalNode only
+  // covers this edge's two ends, so measured sizes come off the node list.
+  const internalById = id => {
+    const n = getNodes().find(x => x.id === id)
+    return n?.measured?.width
+      ? { measured: n.measured, internals: { positionAbsolute: n.position } }
+      : null
+  }
 
-  let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY, sp = sourcePosition, tp = targetPosition
+  const allEdges = getEdges()
+  let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY
+  let sux = 1, suy = 0, tux = -1, tuy = 0
   if (sourceNode?.measured?.width && targetNode?.measured?.width) {
-    const si = getNodeIntersection(sourceNode, targetNode)
-    const ti = getNodeIntersection(targetNode, sourceNode)
-    sx = si.x; sy = si.y; tx = ti.x; ty = ti.y
-    sp = getEdgePosition(sourceNode, si)
-    tp = getEdgePosition(targetNode, ti)
+    const nodeOf = idOf => (idOf === source ? sourceNode : idOf === target ? targetNode : internalById(idOf))
+    const out = allEdges.filter(e => e.source === source)
+    const inc = allEdges.filter(e => e.target === target)
+    let sd = stemDirection(sourceNode, out, nodeOf, e => e.target)
+    let td = stemDirection(targetNode, inc, nodeOf, e => e.source)
+    // A node whose partners cancel out (one left, one right) has no meaningful
+    // average - fall back to pointing straight at the other end of this edge.
+    const sc = centerOf(sourceNode), tc = centerOf(targetNode)
+    if (Math.hypot(sd.dx, sd.dy) < 0.15) sd = { dx: tc.x - sc.x, dy: tc.y - sc.y }
+    if (Math.hypot(td.dx, td.dy) < 0.15) td = { dx: sc.x - tc.x, dy: sc.y - tc.y }
+    const sp2 = borderPoint(sourceNode, sd.dx, sd.dy)
+    const tp2 = borderPoint(targetNode, td.dx, td.dy)
+    sx = sp2.x; sy = sp2.y; sux = sp2.ux; suy = sp2.uy
+    tx = tp2.x; ty = tp2.y; tux = tp2.ux; tuy = tp2.uy
   }
 
   // Parallel edges between the same node pair (e.g. a request + its response loop)
@@ -58,6 +99,7 @@ export function GradientEdge({
   const parallel = siblings.length > 1
 
   let path, labelX, labelYRaw
+  let c1x, c1y, c2x, c2y, cubic = false
   if (parallel) {
     const n = siblings.length
     const idx = siblings.slice().sort((a, b) => (a.id < b.id ? -1 : 1)).findIndex(e => e.id === id)
@@ -82,9 +124,17 @@ export function GradientEdge({
     labelX = mt * mt * sx + 2 * mt * t * cx + t * t * tx
     labelYRaw = mt * mt * sy + 2 * mt * t * cy + t * t * ty
   } else {
-    ;[path, labelX, labelYRaw] = getBezierPath({
-      sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition: sp, targetPosition: tp,
-    })
+    // Leave along the source's stem, arrive along the target's, so branches peel
+    // off one shared stem and settle flat into the box - the mind-map brace.
+    const L = Math.hypot(tx - sx, ty - sy) || 1
+    const k = Math.min(180, Math.max(40, L * 0.45))
+    c1x = sx + sux * k; c1y = sy + suy * k
+    c2x = tx + tux * k; c2y = ty + tuy * k
+    path = `M${sx},${sy} C${c1x},${c1y} ${c2x},${c2y} ${tx},${ty}`
+    const m = bezierAt(0.5, sx, sy, c1x, c1y, c2x, c2y, tx, ty)
+    labelX = m.x
+    labelYRaw = m.y
+    cubic = true
   }
   // If the label lands on top of a service node, lift it just above that node so
   // the text never overlaps a box.
@@ -114,7 +164,25 @@ export function GradientEdge({
         </linearGradient>
       </defs>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={{ stroke: `url(#${gid})`, strokeWidth: 1.5 }} />
-      {(label || hasStep) && (
+      {hasStep && cubic && (() => {
+        // The step number rides ON the line just short of the target, the way a
+        // mind map numbers its branches - not crammed inside the label pill.
+        // Everything arriving at one node shares an anchor, so markers placed at
+        // the same fraction would pile up there. Stagger them back along their
+        // own curves by arrival order.
+        const arriving = allEdges.filter(e => e.target === target)
+        const rank = arriving.findIndex(e => e.id === id)
+        const t = Math.max(0.62, 0.9 - Math.max(0, rank) * 0.07)
+        const p = bezierAt(t, sx, sy, c1x, c1y, c2x, c2y, tx, ty)
+        return (
+          <g className="sd-step-dot" pointerEvents="none">
+            <circle cx={p.x} cy={p.y} r={6.5} fill="#fff" stroke={c2} strokeWidth={1.5} />
+            <text x={p.x} y={p.y} fill={c2} fontSize={7.5} fontWeight={800}
+              textAnchor="middle" dominantBaseline="central">{data.step}</text>
+          </g>
+        )
+      })()}
+      {label && (
         <EdgeLabelRenderer>
           <div
             className="sd-edge-badge"
@@ -123,7 +191,6 @@ export function GradientEdge({
               '--c1': c1, '--c2': c2,
             }}
           >
-            {hasStep && <span className="sd-step-chip">{data.step}</span>}
             {label && <span>{label}</span>}
           </div>
         </EdgeLabelRenderer>
