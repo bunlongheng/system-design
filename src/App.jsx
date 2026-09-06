@@ -144,7 +144,7 @@ export default function App() {
   const [arrangeUndo, setArrangeUndo] = useState(null)
   const nodesRef = useRef([])
   useEffect(() => {
-    const track = e => { snapModRef.current = e.metaKey || e.ctrlKey }
+    const track = e => { snapModRef.current = e.metaKey || e.ctrlKey || e.shiftKey }
     const events = ['keydown', 'keyup', 'pointerdown', 'pointermove']
     events.forEach(t => window.addEventListener(t, track))
     return () => events.forEach(t => window.removeEventListener(t, track))
@@ -390,8 +390,11 @@ export default function App() {
       // Rewriting the CHANGE (not the node afterwards) is what makes the snap
       // stick on release: React Flow's own drag position never lands in state.
       let applied = changes
-      const drag = changes.find(c => c.type === 'position' && c.position)
-      if (drag && snapModRef.current) {
+      const drags = changes.filter(c => c.type === 'position' && c.position)
+      const drag = drags[0]
+      // Only a single-node drag snaps. Rewriting one position out of a multi-node
+      // drag would shear the selection apart.
+      if (drag && drags.length === 1 && snapModRef.current) {
         const all = rfInstance.current?.getNodes() ?? []
         const dragged = all.find(n => n.id === drag.id)
         // Only real service nodes are snap targets - the auto Start/Destination

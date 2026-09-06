@@ -11,6 +11,17 @@ import { BaseEdge, EdgeLabelRenderer, useInternalNode, useReactFlow } from '@xyf
 // one feeding upward anchors on top. It falls out of the graph, nothing is hard
 // coded to left-to-right.
 
+// Two boxes that sit on the same axis get a straight connector instead of a
+// brace curve - lining them up was a deliberate act and the diagram should show
+// it. "On the same axis" is proportional: the off-axis drift has to be within 5%
+// of how far apart they are, so a long run tolerates a few pixels of slop while
+// two boxes close together have to be genuinely square. ALIGN_TOL is the floor,
+// so a pair snapped exactly always reads straight even when they nearly touch.
+const ALIGN_TOL = 8
+const ALIGN_RATIO = 0.05
+
+const onAxis = (drift, span) => drift <= ALIGN_TOL || drift <= span * ALIGN_RATIO
+
 const centerOf = n => ({
   x: n.internals.positionAbsolute.x + n.measured.width / 2,
   y: n.internals.positionAbsolute.y + n.measured.height / 2,
@@ -74,6 +85,7 @@ export function GradientEdge({
   const allEdges = getEdges()
   let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY
   let sux = 1, suy = 0, tux = -1, tuy = 0
+  let aligned = false
   if (sourceNode?.measured?.width && targetNode?.measured?.width) {
     const nodeOf = idOf => (idOf === source ? sourceNode : idOf === target ? targetNode : internalById(idOf))
     const out = allEdges.filter(e => e.source === source)
@@ -85,10 +97,28 @@ export function GradientEdge({
     const sc = centerOf(sourceNode), tc = centerOf(targetNode)
     if (Math.hypot(sd.dx, sd.dy) < 0.15) sd = { dx: tc.x - sc.x, dy: tc.y - sc.y }
     if (Math.hypot(td.dx, td.dy) < 0.15) td = { dx: sc.x - tc.x, dy: sc.y - tc.y }
-    const sp2 = borderPoint(sourceNode, sd.dx, sd.dy)
-    const tp2 = borderPoint(targetNode, td.dx, td.dy)
-    sx = sp2.x; sy = sp2.y; sux = sp2.ux; suy = sp2.uy
-    tx = tp2.x; ty = tp2.y; tux = tp2.ux; tuy = tp2.uy
+    // Aligned pairs bypass the stem averaging entirely - the connector runs flat
+    // along the shared axis from one facing edge to the other.
+    const driftY = Math.abs(sc.y - tc.y)
+    const driftX = Math.abs(sc.x - tc.x)
+    if (driftX >= driftY && onAxis(driftY, driftX)) {
+      aligned = true
+      const y = (sc.y + tc.y) / 2
+      const dir = tc.x > sc.x ? 1 : -1
+      sx = sc.x + dir * sourceNode.measured.width / 2; sy = y
+      tx = tc.x - dir * targetNode.measured.width / 2; ty = y
+    } else if (onAxis(driftX, driftY)) {
+      aligned = true
+      const x = (sc.x + tc.x) / 2
+      const dir = tc.y > sc.y ? 1 : -1
+      sx = x; sy = sc.y + dir * sourceNode.measured.height / 2
+      tx = x; ty = tc.y - dir * targetNode.measured.height / 2
+    } else {
+      const sp2 = borderPoint(sourceNode, sd.dx, sd.dy)
+      const tp2 = borderPoint(targetNode, td.dx, td.dy)
+      sx = sp2.x; sy = sp2.y; sux = sp2.ux; suy = sp2.uy
+      tx = tp2.x; ty = tp2.y; tux = tp2.ux; tuy = tp2.uy
+    }
   }
 
   // Parallel edges between the same node pair (e.g. a request + its response loop)
@@ -123,6 +153,11 @@ export function GradientEdge({
     const mt = 1 - t
     labelX = mt * mt * sx + 2 * mt * t * cx + t * t * tx
     labelYRaw = mt * mt * sy + 2 * mt * t * cy + t * t * ty
+  } else if (aligned) {
+    // Lined up: straight line, edge to facing edge.
+    path = `M${sx},${sy} L${tx},${ty}`
+    labelX = (sx + tx) / 2
+    labelYRaw = (sy + ty) / 2
   } else {
     // Leave along the source's stem, arrive along the target's, so branches peel
     // off one shared stem and settle flat into the box - the mind-map brace.
@@ -164,7 +199,7 @@ export function GradientEdge({
         </linearGradient>
       </defs>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={{ stroke: `url(#${gid})`, strokeWidth: 1.5 }} />
-      {hasStep && cubic && (() => {
+      {hasStep && (() => {
         // The step number rides ON the line just short of the target, the way a
         // mind map numbers its branches - not crammed inside the label pill.
         // Everything arriving at one node shares an anchor, so markers placed at
@@ -173,7 +208,9 @@ export function GradientEdge({
         const arriving = allEdges.filter(e => e.target === target)
         const rank = arriving.findIndex(e => e.id === id)
         const t = Math.max(0.62, 0.9 - Math.max(0, rank) * 0.07)
-        const p = bezierAt(t, sx, sy, c1x, c1y, c2x, c2y, tx, ty)
+        const p = cubic
+          ? bezierAt(t, sx, sy, c1x, c1y, c2x, c2y, tx, ty)
+          : { x: sx + (tx - sx) * t, y: sy + (ty - sy) * t }
         return (
           <g className="sd-step-dot" pointerEvents="none">
             <circle cx={p.x} cy={p.y} r={6.5} fill="#fff" stroke={c2} strokeWidth={1.5} />
