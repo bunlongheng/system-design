@@ -67,7 +67,7 @@ export function IndexView({
           .sd-header { padding: 0 16px !important; }
           .sd-search-wrap { flex: 1 !important; width: auto !important; }
           .sd-search-wrap input { width: 100% !important; }
-          .sd-main { padding: 20px 16px 100px !important; }
+          .sd-main { padding: 16px 16px 100px !important; }
         }
       `}</style>
 
@@ -167,7 +167,7 @@ export function IndexView({
       </header>
 
       {/* ── Content ── */}
-      <main className="sd-main" style={{ padding: isDemo ? '16px 32px 60px' : '32px 32px 100px', maxWidth: 1600, margin: '0 auto', width: '100%', boxSizing: 'border-box', flex: 1 }}>
+      <main className="sd-main" style={{ padding: isDemo ? '32px 32px 60px' : '32px 32px 100px', maxWidth: 1600, margin: '0 auto', width: '100%', boxSizing: 'border-box', flex: 1 }}>
         {filtered.length === 0 && (
           <div style={{ position: 'fixed', inset: 0, top: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', background: '#f4f5f7' }}>
             <div style={{ width: 48, height: 48, borderRadius: 12, background: '#e4e6e8', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
