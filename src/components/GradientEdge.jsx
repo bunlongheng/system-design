@@ -68,6 +68,100 @@ function attachPoint(node, nodeId, otherNode, edgeId, edges, nodeOf) {
   return { x: c.x + offset, y: c.y - h2, side, alone: n === 1 }
 }
 
+
+// ─── Obstacle-aware routing ───────────────────────────────────────────────────
+// Aligning nodes onto shared rows makes most connectors straight, but it also
+// means a long run can pass clean THROUGH the boxes sitting between its two
+// ends. So the route is built as a polyline, every segment is tested against
+// the other nodes, and when one is blocked the middle of the route slides to a
+// lane that is clear.
+const LANE = 26        // clearance kept between a routed line and a box
+const HIT_PAD = 4      // a line grazing a border is not a crossing
+
+const blocks = (x1, y1, x2, y2, rects) => rects.some(r => {
+  const rx1 = r.x - HIT_PAD, ry1 = r.y - HIT_PAD
+  const rx2 = r.x + r.w + HIT_PAD, ry2 = r.y + r.h + HIT_PAD
+  if (y1 === y2) return y1 > ry1 && y1 < ry2 && Math.max(x1, x2) > rx1 && Math.min(x1, x2) < rx2
+  if (x1 === x2) return x1 > rx1 && x1 < rx2 && Math.max(y1, y2) > ry1 && Math.min(y1, y2) < ry2
+  // diagonal (only the straight-run case) - sample it
+  for (let t = 0; t <= 1; t += 0.02) {
+    const x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t
+    if (x > rx1 && x < rx2 && y > ry1 && y < ry2) return true
+  }
+  return false
+})
+
+const clearPolyline = (pts, rects) => {
+  for (let i = 1; i < pts.length; i++) {
+    if (blocks(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, rects)) return false
+  }
+  return true
+}
+
+// Lanes to try for the middle of the route: the natural midpoint first, then
+// just clear of each box's edges, nearest first.
+const lanes = (mid, rects, axis) => {
+  const out = [mid]
+  for (const r of rects) {
+    if (axis === 'x') { out.push(r.x - LANE, r.x + r.w + LANE) }
+    else { out.push(r.y - LANE, r.y + r.h + LANE) }
+  }
+  return [...new Set(out)].sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid))
+}
+
+// When two boxes share a row, no choice of middle helps - the whole run lives on
+// that row and passes through whatever sits between them. The way out is to
+// leave through the TOP or BOTTOM face instead and travel in a clear lane above
+// or below the row. Mirrored for two boxes sharing a column.
+function detour(sRect, tRect, rects, vertical) {
+  const sc = { x: sRect.x + sRect.w / 2, y: sRect.y + sRect.h / 2 }
+  const tc = { x: tRect.x + tRect.w / 2, y: tRect.y + tRect.h / 2 }
+  for (const before of [true, false]) {
+    const s = vertical
+      ? { x: before ? sRect.x : sRect.x + sRect.w, y: sc.y }
+      : { x: sc.x, y: before ? sRect.y : sRect.y + sRect.h }
+    const t = vertical
+      ? { x: before ? tRect.x : tRect.x + tRect.w, y: tc.y }
+      : { x: tc.x, y: before ? tRect.y : tRect.y + tRect.h }
+    const mid = vertical ? (s.x + t.x) / 2 : (s.y + t.y) / 2
+    for (const c of lanes(mid, rects, vertical ? 'x' : 'y')) {
+      const pts = vertical
+        ? [s, { x: c, y: s.y }, { x: c, y: t.y }, t]
+        : [s, { x: s.x, y: c }, { x: t.x, y: c }, t]
+      if (clearPolyline(pts, rects)) return pts
+    }
+  }
+  return null
+}
+
+// Orthogonal points for a pair of faces, with the middle placed at `c`.
+function routePoints(s, t, sHoriz, tHoriz, c) {
+  if (sHoriz && tHoriz) return [s, { x: c, y: s.y }, { x: c, y: t.y }, t]
+  if (!sHoriz && !tHoriz) return [s, { x: s.x, y: c }, { x: t.x, y: c }, t]
+  if (sHoriz) return [s, { x: t.x, y: s.y }, t]
+  return [s, { x: s.x, y: t.y }, t]
+}
+
+// Rounded corners, drawn by pulling back from each bend.
+function roundedPath(pts, r = 16) {
+  if (pts.length < 3) return `M${pts[0].x},${pts[0].y} L${pts[pts.length - 1].x},${pts[pts.length - 1].y}`
+  let d = `M${pts[0].x},${pts[0].y}`
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], cpt = pts[i + 1]
+    const r1 = Math.min(r, Math.hypot(b.x - a.x, b.y - a.y) / 2)
+    const r2 = Math.min(r, Math.hypot(cpt.x - b.x, cpt.y - b.y) / 2)
+    const rr = Math.min(r1, r2)
+    const inX = b.x + (a.x - b.x === 0 ? 0 : Math.sign(a.x - b.x) * rr)
+    const inY = b.y + (a.y - b.y === 0 ? 0 : Math.sign(a.y - b.y) * rr)
+    const outX = b.x + (cpt.x - b.x === 0 ? 0 : Math.sign(cpt.x - b.x) * rr)
+    const outY = b.y + (cpt.y - b.y === 0 ? 0 : Math.sign(cpt.y - b.y) * rr)
+    d += ` L${inX},${inY} Q${b.x},${b.y} ${outX},${outY}`
+  }
+  const last = pts[pts.length - 1]
+  d += ` L${last.x},${last.y}`
+  return d
+}
+
 // Edge whose line is a gradient from the SOURCE node's color to the TARGET
 // node's color, connected at the nearest borders. The label badge sits at the
 // midpoint; the Steps chip is a chip inside that badge.
@@ -87,6 +181,10 @@ export function GradientEdge({
   }
 
   const allEdges = getEdges()
+  // Every other service box is something this edge must not run through.
+  const obstacles = getNodes()
+    .filter(n => n.type === 'awsNode' && n.id !== source && n.id !== target && n.measured?.width && n.position)
+    .map(n => ({ x: n.position.x, y: n.position.y, w: n.measured.width, h: n.measured.height }))
   let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY
   let sSide = Position.Right, tSide = Position.Left
   let aligned = false
@@ -146,11 +244,51 @@ export function GradientEdge({
     const mt = 1 - t
     labelX = mt * mt * sx + 2 * mt * t * cx + t * t * tx
     labelYRaw = mt * mt * sy + 2 * mt * t * cy + t * t * ty
-  } else if (aligned) {
-    // Lined up: straight line, edge to facing edge.
+  } else if (aligned && !blocks(sx, sy, tx, ty, obstacles)) {
+    // Lined up AND nothing in the way: straight line, edge to facing edge.
     path = `M${sx},${sy} L${tx},${ty}`
     labelX = (sx + tx) / 2
     labelYRaw = (sy + ty) / 2
+  } else if (obstacles.length) {
+    // Build the route as a polyline so each leg can be tested, and slide the
+    // middle into the nearest clear lane. Falls back to the plain elbow only
+    // when nothing is clear, which keeps a dense graph readable instead of
+    // sending a line on a long detour.
+    const sHoriz = sSide === Position.Left || sSide === Position.Right
+    const tHoriz = tSide === Position.Left || tSide === Position.Right
+    const S = { x: sx, y: sy }, T = { x: tx, y: ty }
+    const axis = sHoriz && tHoriz ? 'x' : (!sHoriz && !tHoriz ? 'y' : null)
+    let pts = null
+    if (axis) {
+      const mid = axis === 'x' ? (sx + tx) / 2 : (sy + ty) / 2
+      for (const c of lanes(mid, obstacles, axis)) {
+        const cand = routePoints(S, T, sHoriz, tHoriz, c)
+        if (clearPolyline(cand, obstacles)) { pts = cand; break }
+      }
+      if (!pts) {
+        // Nothing clear on these faces - go over the top (or round the side).
+        const sR = { x: sourceNode.internals.positionAbsolute.x, y: sourceNode.internals.positionAbsolute.y, w: sourceNode.measured.width, h: sourceNode.measured.height }
+        const tR = { x: targetNode.internals.positionAbsolute.x, y: targetNode.internals.positionAbsolute.y, w: targetNode.measured.width, h: targetNode.measured.height }
+        pts = detour(sR, tR, obstacles, axis === 'y')
+          || detour(sR, tR, obstacles, axis !== 'y')
+          || routePoints(S, T, sHoriz, tHoriz, mid)
+      }
+    } else {
+      // An L between a horizontal face and a vertical one - try it, then the
+      // other way round, then give up on the L and go over/around instead.
+      const a = routePoints(S, T, sHoriz, tHoriz, 0)
+      const b = sHoriz ? [S, { x: S.x, y: T.y }, T] : [S, { x: T.x, y: S.y }, T]
+      const sR = { x: sourceNode.internals.positionAbsolute.x, y: sourceNode.internals.positionAbsolute.y, w: sourceNode.measured.width, h: sourceNode.measured.height }
+      const tR = { x: targetNode.internals.positionAbsolute.x, y: targetNode.internals.positionAbsolute.y, w: targetNode.measured.width, h: targetNode.measured.height }
+      pts = clearPolyline(a, obstacles) ? a
+        : clearPolyline(b, obstacles) ? b
+          : (detour(sR, tR, obstacles, false) || detour(sR, tR, obstacles, true) || a)
+    }
+    path = roundedPath(pts)
+    const m = pts[Math.floor(pts.length / 2)]
+    const m2 = pts[Math.ceil(pts.length / 2)] || m
+    labelX = (m.x + m2.x) / 2
+    labelYRaw = (m.y + m2.y) / 2
   } else {
     // Rounded elbow: leave the box perpendicular to the face the stem came out
     // of, make ONE turn, and arrive perpendicular to the target's face. Because
