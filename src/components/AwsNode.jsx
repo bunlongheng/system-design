@@ -34,20 +34,27 @@ export const AwsNode = memo(function AwsNode({ data }) {
   )
 })
 
-// ─── Start/End marker node ─────────────────────────────────────────────────────
-// A separate pill node arrowed into the entry node ("Start here") or out of a
-// terminal node ("Destination") - clearer than a badge stuck on the node.
+// ─── Start marker node ─────────────────────────────────────────────────────────
+// A pill arrowed into the entry node - clearer than a badge stuck on the node.
+// It sits ABOVE that node when there is room, pointing down, and falls back to
+// sitting on its left, pointing right.
 export const MarkerNode = memo(function MarkerNode({ data }) {
-  const start = data.kind === 'start'
-  const color = start ? '#16a34a' : '#dc2626'
-  const label = start ? 'Start here' : 'Destination'
-  // The connector arrow is drawn as part of the node (start: exits right toward
-  // the entry node; end: enters from the left, from the terminal node) - more
-  // reliable than a React Flow edge on a dynamically-added node.
-  const connector = (
+  const color = '#16a34a'
+  const down = data.dir === 'down'
+  // The arrow is drawn as part of the node rather than as a React Flow edge -
+  // more reliable for a node the app adds on the fly.
+  const connector = down ? (
+    <svg
+      width="12" height="70" viewBox="0 0 12 70"
+      style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: '100%', overflow: 'visible' }}
+    >
+      <line className="sd-marker-line" x1="6" y1="0" x2="6" y2="60" stroke={color} strokeWidth="1.5" />
+      <path d="M2.5 60 L6 67 L9.5 60" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
     <svg
       width="70" height="12" viewBox="0 0 70 12"
-      style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', [start ? 'left' : 'right']: '100%', overflow: 'visible' }}
+      style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: '100%', overflow: 'visible' }}
     >
       <line className="sd-marker-line" x1="0" y1="6" x2="60" y2="6" stroke={color} strokeWidth="1.5" />
       <path d="M60 2.5 L67 6 L60 9.5" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -61,12 +68,9 @@ export const MarkerNode = memo(function MarkerNode({ data }) {
     }}>
       {connector}
       <span style={{ width: 22, height: 22, borderRadius: '50%', background: color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        {start
-          ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-          : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-        }
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
       </span>
-      <span style={{ fontSize: 11, fontWeight: 800, color, letterSpacing: '0.03em' }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 800, color, letterSpacing: '0.03em' }}>Start here</span>
     </div>
   )
 })

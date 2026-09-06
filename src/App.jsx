@@ -45,6 +45,9 @@ function buildEdges(rawEdges) {
 // robust even for closed loops. There is deliberately no Destination pill: it
 // guessed at an endpoint the diagram never claimed, and where a flow BEGINS is
 // the only hint a reader actually needs.
+const NODE_W = 190, NODE_H = 120 // nominal card size, for the free-space check
+const MARKER_GAP = 96            // pill height + connector run
+
 function buildMarkers(nodes, edges) {
   if (!nodes.length) return { nodes: [], edges: [] }
   const byId = id => nodes.find(n => n.id === id)
@@ -58,8 +61,17 @@ function buildMarkers(nodes, edges) {
   const s = byId(startId)
   if (s) {
     const p = s.position || { x: 0, y: 0 }
-    // +37 vertically centers the ~110px node against the 36px marker pill.
-    mNodes.push({ id: `__start_${startId}`, type: 'marker', position: { x: p.x - 200, y: p.y + 37 }, width: 132, height: 36, data: { kind: 'start' }, draggable: false, selectable: false })
+    // Prefer sitting ABOVE the entry node and pointing down - a diagram reads
+    // top-down before it reads left-to-right, and the space above the first node
+    // is usually empty anyway. Only fall back to the left when something is
+    // parked overhead.
+    const roomAbove = !nodes.some(n => n.id !== startId && n.position
+      && Math.abs(n.position.x - p.x) < NODE_W
+      && p.y - n.position.y > 0 && p.y - n.position.y < NODE_H + MARKER_GAP)
+    const pos = roomAbove
+      ? { x: p.x + 6, y: p.y - MARKER_GAP }   // centered-ish over a ~145px node
+      : { x: p.x - 200, y: p.y + 37 }         // +37 centers the pill on the node
+    mNodes.push({ id: `__start_${startId}`, type: 'marker', position: pos, width: 132, height: 36, data: { kind: 'start', dir: roomAbove ? 'down' : 'right' }, draggable: false, selectable: false })
   }
   return { nodes: mNodes, edges: [] }
 }
