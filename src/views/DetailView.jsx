@@ -30,7 +30,7 @@ export function DetailView({
   isPublic,
   saveState = 'idle',
   onArrange,
-  showArrangeUndo, arrangeUndone, onArrangeUndo,
+  canUndo, canRedo, onUndo, onRedo,
 }) {
   const brand = brandFor(activeDiagram?.title)
   return (
@@ -147,30 +147,30 @@ export function DetailView({
             Arrange
           </button>
 
-          {/* Only offered right after an Arrange - it is the one click that can
-              wipe a hand-placed layout. Flips to Redo so you can go back and
-              forth, and disappears as soon as you move a node yourself. */}
-          {showArrangeUndo && (
-            <button onClick={onArrangeUndo}
-              title={arrangeUndone ? 'Re-apply the auto-arrange' : 'Put the previous layout back'}
+          {/* Undo / redo. They appear once there IS something to undo, so a
+              freshly opened diagram keeps a clean toolbar, and each button dims
+              when its own direction is empty. */}
+          {(canUndo || canRedo) && [
+            { key: 'undo', label: 'Undo', on: onUndo, enabled: canUndo, hint: 'Undo (Cmd+Z)', d: 'M3 10h13a5 5 0 0 1 0 10h-1M3 10l4-4M3 10l4 4' },
+            { key: 'redo', label: 'Redo', on: onRedo, enabled: canRedo, hint: 'Redo (Cmd+Shift+Z)', d: 'M21 10H8a5 5 0 0 0 0 10h1M21 10l-4-4M21 10l-4 4' },
+          ].map(b => (
+            <button key={b.key} onClick={() => b.enabled && b.on && b.on()} disabled={!b.enabled} title={b.hint}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                padding: '0 10px', height: 30, borderRadius: 8,
-                border: '1px solid #fcd34d', background: '#fffbeb', color: '#92400e',
-                cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+                background: 'transparent', color: b.enabled ? '#64748b' : '#cbd5e1',
+                cursor: b.enabled ? 'pointer' : 'default', fontSize: 13, fontWeight: 400,
                 transition: 'all 0.1s', fontFamily: 'inherit', flexShrink: 0,
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#fef3c7')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#fffbeb')}
+              onMouseEnter={e => { if (b.enabled) e.currentTarget.style.background = '#f1f5f9' }}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                {arrangeUndone
-                  ? <><path d="M21 10H8a5 5 0 0 0 0 10h1" /><polyline points="17 6 21 10 17 14" /></>
-                  : <><path d="M3 10h13a5 5 0 0 1 0 10h-1" /><polyline points="7 6 3 10 7 14" /></>}
+                <path d={b.d} />
               </svg>
-              {arrangeUndone ? 'Redo' : 'Undo'}
+              {b.label}
             </button>
-          )}
+          ))}
 
           <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 

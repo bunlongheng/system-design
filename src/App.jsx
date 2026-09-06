@@ -57,21 +57,43 @@ function buildMarkers(nodes, edges) {
   let startId = edges[0] && edges[0].source && byId(edges[0].source) ? edges[0].source : null
   if (!startId) startId = (nodes.find(n => !hasIncoming.has(n.id)) || nodes[0]).id
 
+  // The pill must never share a face with an edge - a green arrow landing on the
+  // same side as a real connection reads as part of the flow. So work out which
+  // faces this node's edges already use and take the first free one, preferring
+  // top (a diagram reads downward), then left, then the remaining sides.
+  const nodeCenter = n => ({ x: (n.position?.x ?? 0) + NODE_W / 2, y: (n.position?.y ?? 0) + NODE_H / 2 })
+  const used = new Set()
+  const sc = byId(startId) ? nodeCenter(byId(startId)) : { x: 0, y: 0 }
+  for (const e of edges) {
+    const otherId = e.source === startId ? e.target : e.target === startId ? e.source : null
+    const other = otherId && byId(otherId)
+    if (!other) continue
+    const oc = nodeCenter(other)
+    const dx = oc.x - sc.x, dy = oc.y - sc.y
+    used.add(Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'bottom' : 'top'))
+  }
+
   const mNodes = []
   const s = byId(startId)
   if (s) {
     const p = s.position || { x: 0, y: 0 }
-    // Prefer sitting ABOVE the entry node and pointing down - a diagram reads
-    // top-down before it reads left-to-right, and the space above the first node
-    // is usually empty anyway. Only fall back to the left when something is
-    // parked overhead.
-    const roomAbove = !nodes.some(n => n.id !== startId && n.position
-      && Math.abs(n.position.x - p.x) < NODE_W
-      && p.y - n.position.y > 0 && p.y - n.position.y < NODE_H + MARKER_GAP)
-    const pos = roomAbove
-      ? { x: p.x + 6, y: p.y - MARKER_GAP }   // centered-ish over a ~145px node
-      : { x: p.x - 200, y: p.y + 37 }         // +37 centers the pill on the node
-    mNodes.push({ id: `__start_${startId}`, type: 'marker', position: pos, width: 132, height: 36, data: { kind: 'start', dir: roomAbove ? 'down' : 'right' }, draggable: false, selectable: false })
+    // A side also has to be physically clear - no point pointing the arrow
+    // through a neighbouring box.
+    const clear = {
+      top: !nodes.some(n => n.id !== startId && n.position && Math.abs(n.position.x - p.x) < NODE_W && p.y - n.position.y > 0 && p.y - n.position.y < NODE_H + MARKER_GAP),
+      bottom: !nodes.some(n => n.id !== startId && n.position && Math.abs(n.position.x - p.x) < NODE_W && n.position.y - p.y > 0 && n.position.y - p.y < NODE_H + MARKER_GAP),
+      left: !nodes.some(n => n.id !== startId && n.position && Math.abs(n.position.y - p.y) < NODE_H && p.x - n.position.x > 0 && p.x - n.position.x < NODE_W + 200),
+      right: !nodes.some(n => n.id !== startId && n.position && Math.abs(n.position.y - p.y) < NODE_H && n.position.x - p.x > 0 && n.position.x - p.x < NODE_W + 200),
+    }
+    const order = ['top', 'left', 'bottom', 'right']
+    const side = order.find(k => !used.has(k) && clear[k]) || order.find(k => !used.has(k)) || 'left'
+    const place = {
+      top: { pos: { x: p.x + 6, y: p.y - MARKER_GAP }, dir: 'down' },
+      bottom: { pos: { x: p.x + 6, y: p.y + NODE_H + 40 }, dir: 'up' },
+      left: { pos: { x: p.x - 200, y: p.y + 37 }, dir: 'right' },
+      right: { pos: { x: p.x + 205, y: p.y + 37 }, dir: 'left' },
+    }[side]
+    mNodes.push({ id: `__start_${startId}`, type: 'marker', position: place.pos, width: 132, height: 36, data: { kind: 'start', dir: place.dir }, draggable: false, selectable: false })
   }
   return { nodes: mNodes, edges: [] }
 }
@@ -134,8 +156,18 @@ export default function App() {
   // Arrange is the one destructive click on the canvas - it throws away a
   // hand-placed layout. So it offers a way back, but only right after you press
   // it: { before, after, undone }. No permanent undo/redo chrome in the toolbar.
-  const [arrangeUndo, setArrangeUndo] = useState(null)
+  // Undo/redo for the canvas. A step is just the node positions before an edit -
+  // dragging and Arrange are the only things that move anything - so a snapshot
+  // is tiny and restoring is exact. `kind` is kept so undoing an Arrange re-fits
+  // the view (it zoomed to its own layout) while undoing a drag leaves the
+  // viewport alone.
+  const [history, setHistory] = useState({ past: [], future: [] })
   const nodesRef = useRef([])
+  const dragStartRef = useRef(null)
+  // historyRef mirrors the stack so undo/redo can read it without being rebuilt
+  // (and re-bound to the keyboard) on every step.
+  const historyRef = useRef(history)
+  useEffect(() => { historyRef.current = history }, [history])
   useEffect(() => {
     const track = e => { snapModRef.current = e.metaKey || e.ctrlKey || e.shiftKey }
     const events = ['keydown', 'keyup', 'pointerdown', 'pointermove']
@@ -259,7 +291,7 @@ export default function App() {
 
   function openDiagram(d) {
     setActiveDiagram(d)
-    setArrangeUndo(null)
+    setHistory({ past: [], future: [] })
     const raw = d.data.nodes || []
     // Use the owner's saved layout when every node has a stored position;
     // otherwise auto-layout with dagre so nothing overlaps.
@@ -322,6 +354,37 @@ export default function App() {
     saveTimer.current = setTimeout(() => doSave(diagramId, nds), 600)
   }, [doSave])
 
+  // Record the layout as it was BEFORE an edit. A new edit clears the redo pile,
+  // the same as every editor. 50 steps is far more than anyone walks back.
+  const pushHistory = useCallback((positions, kind) => {
+    setHistory(h => ({ past: [...h.past, { positions, kind }].slice(-50), future: [] }))
+  }, [])
+
+  // Put a snapshot back on the canvas and persist it, so an undo survives reload.
+  const applyPositions = useCallback((positions, refit) => {
+    const byId = Object.fromEntries(positions.map(p => [p.id, p.position]))
+    const next = nodesRef.current.map(n => (byId[n.id] ? { ...n, position: { ...byId[n.id] } } : n))
+    setNodes(next)
+    if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, next)
+    if (refit) setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
+  }, [canAI, activeDiagram, savePositions])
+
+  const undo = useCallback(() => {
+    const { past, future } = historyRef.current
+    if (!past.length) return
+    const step = past[past.length - 1]
+    setHistory({ past: past.slice(0, -1), future: [...future, { positions: positionsOf(nodesRef.current), kind: step.kind }] })
+    applyPositions(step.positions, step.kind === 'arrange')
+  }, [applyPositions])
+
+  const redo = useCallback(() => {
+    const { past, future } = historyRef.current
+    if (!future.length) return
+    const step = future[future.length - 1]
+    setHistory({ past: [...past, { positions: positionsOf(nodesRef.current), kind: step.kind }], future: future.slice(0, -1) })
+    applyPositions(step.positions, step.kind === 'arrange')
+  }, [applyPositions])
+
   // Keyboard shortcuts: Cmd/Ctrl+S saves the current layout immediately (owner,
   // on the detail canvas); Cmd/Ctrl+R re-fetches diagrams in-app (pull-to-refresh)
   // instead of a full browser reload. Both block the browser default.
@@ -337,6 +400,16 @@ export default function App() {
           if (saveTimer.current) clearTimeout(saveTimer.current)
           doSave(activeDiagram.id, nodes, true)
         }
+      } else if (mod && (e.key === 'z' || e.key === 'Z')) {
+        // Cmd/Ctrl+Z undoes, +Shift redoes - but never while typing in the AI
+        // prompt, where the browser's own text undo is what you want.
+        const t = e.target
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+        e.preventDefault()
+        if (view === 'detail') (e.shiftKey ? redo : undo)()
+      } else if (mod && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault()
+        if (view === 'detail') redo()
       } else if (mod && (e.key === 'r' || e.key === 'R')) {
         e.preventDefault()
         loadDiagrams()
@@ -345,7 +418,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [view, canAI, activeDiagram, nodes, doSave, loadDiagrams, showToastMsg])
+  }, [view, canAI, activeDiagram, nodes, doSave, loadDiagrams, showToastMsg, undo, redo])
 
   // Auto-arrange: re-run dagre on the current nodes (start on the left, spread out,
   // steps ordered top-to-bottom, labels clear of nodes), fit-zoom, and persist for
@@ -353,26 +426,11 @@ export default function App() {
   const autoArrange = useCallback(() => {
     const current = nodesRef.current
     const arranged = layoutElements(current.filter(n => n.type === 'awsNode'), edges, { canvas: canvasSize() })
+    pushHistory(positionsOf(current), 'arrange')
     setNodes(arranged)
-    setArrangeUndo({ before: positionsOf(current), after: positionsOf(arranged), undone: false })
     if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, arranged)
     setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
-  }, [edges, canAI, activeDiagram, savePositions])
-
-  // Undo/redo the last Arrange: put the saved positions back (and re-fit, since
-  // Arrange zoomed to its own layout and the old one may sit elsewhere).
-  const toggleArrangeUndo = useCallback(() => {
-    setArrangeUndo(u => {
-      if (!u) return u
-      const target = u.undone ? u.after : u.before
-      const byId = Object.fromEntries(target.map(p => [p.id, p.position]))
-      const next = nodesRef.current.map(n => (byId[n.id] ? { ...n, position: { ...byId[n.id] } } : n))
-      setNodes(next)
-      if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, next)
-      setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
-      return { ...u, undone: !u.undone }
-    })
-  }, [canAI, activeDiagram, savePositions])
+  }, [edges, canAI, activeDiagram, savePositions, pushHistory])
 
   // Let nodes be dragged around the canvas (positions live in React state, and
   // are saved to the DB on drag-end when the owner can edit).
@@ -408,10 +466,17 @@ export default function App() {
         }
         return next
       })
-      // Moving a node by hand is a new layout - the Arrange offer no longer applies.
-      if (applied.some(c => c.type === 'position' && c.dragging === false)) setArrangeUndo(null)
+      // One history step per DRAG, not per frame: stash the layout when a drag
+      // starts and commit it when the mouse comes up.
+      if (drags.some(c => c.dragging) && !dragStartRef.current) {
+        dragStartRef.current = positionsOf(nodesRef.current)
+      }
+      if (applied.some(c => c.type === 'position' && c.dragging === false) && dragStartRef.current) {
+        pushHistory(dragStartRef.current, 'drag')
+        dragStartRef.current = null
+      }
     },
-    [canAI, activeDiagram, savePositions],
+    [canAI, activeDiagram, savePositions, pushHistory],
   )
 
   // Clear the guides whenever the drag (or the modifier) ends.
@@ -671,7 +736,7 @@ export default function App() {
       detailCodeCopied={detailCodeCopied} setDetailCodeCopied={setDetailCodeCopied}
       nodes={displayNodes} edges={displayEdges} onNodesChange={onNodesChange}
       onNodeDragStop={onNodeDragStop} snapGuides={snapGuides}
-      arrangeUndone={arrangeUndo?.undone} showArrangeUndo={Boolean(arrangeUndo)} onArrangeUndo={toggleArrangeUndo}
+      canUndo={history.past.length > 0} canRedo={history.future.length > 0} onUndo={undo} onRedo={redo}
       exportPng={exportPng} exportCode={exportCode} exportJson={exportJson}
       copyLink={copyLink} copiedLink={copiedLink}
       shareAction={shareAction} copiedShare={copiedShare}

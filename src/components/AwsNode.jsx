@@ -40,28 +40,40 @@ export const AwsNode = memo(function AwsNode({ data }) {
 // sitting on its left, pointing right.
 export const MarkerNode = memo(function MarkerNode({ data }) {
   const color = '#16a34a'
-  const down = data.dir === 'down'
   // The arrow is drawn as part of the node rather than as a React Flow edge -
   // more reliable for a node the app adds on the fly.
-  const connector = down ? (
-    <svg
-      width="12" height="56" viewBox="0 0 12 56"
-      style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: '100%', overflow: 'visible' }}
-    >
-      {/* The pill sits 60px above the node, so the head stops at 51 - the arrow
-          lands just outside the box instead of poking through the border. */}
-      <line className="sd-marker-line" x1="6" y1="0" x2="6" y2="44" stroke={color} strokeWidth="1.5" />
-      <path d="M2.5 44 L6 51 L9.5 44" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ) : (
-    <svg
-      width="70" height="12" viewBox="0 0 70 12"
-      style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: '100%', overflow: 'visible' }}
-    >
-      <line className="sd-marker-line" x1="0" y1="6" x2="60" y2="6" stroke={color} strokeWidth="1.5" />
-      <path d="M60 2.5 L67 6 L60 9.5" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
+  // One connector per direction. The pill sits ~60px off the node, so each head
+  // stops at 51 - the arrow lands just outside the box, never through its border.
+  const VERT = { position: 'absolute', left: '50%', transform: 'translateX(-50%)', overflow: 'visible' }
+  const HORZ = { position: 'absolute', top: '50%', transform: 'translateY(-50%)', overflow: 'visible' }
+  const stroke = { stroke: color, strokeWidth: 1.5, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' }
+  const connector = {
+    down: (
+      <svg width="12" height="56" viewBox="0 0 12 56" style={{ ...VERT, top: '100%' }}>
+        <line className="sd-marker-line" x1="6" y1="0" x2="6" y2="44" stroke={color} strokeWidth="1.5" />
+        <path d="M2.5 44 L6 51 L9.5 44" {...stroke} />
+      </svg>
+    ),
+    up: (
+      <svg width="12" height="56" viewBox="0 0 12 56" style={{ ...VERT, bottom: '100%' }}>
+        <line className="sd-marker-line" x1="6" y1="56" x2="6" y2="12" stroke={color} strokeWidth="1.5" />
+        <path d="M2.5 12 L6 5 L9.5 12" {...stroke} />
+      </svg>
+    ),
+    right: (
+      <svg width="70" height="12" viewBox="0 0 70 12" style={{ ...HORZ, left: '100%' }}>
+        <line className="sd-marker-line" x1="0" y1="6" x2="60" y2="6" stroke={color} strokeWidth="1.5" />
+        <path d="M60 2.5 L67 6 L60 9.5" {...stroke} />
+      </svg>
+    ),
+    left: (
+      <svg width="70" height="12" viewBox="0 0 70 12" style={{ ...HORZ, right: '100%' }}>
+        <line className="sd-marker-line" x1="70" y1="6" x2="10" y2="6" stroke={color} strokeWidth="1.5" />
+        <path d="M10 2.5 L3 6 L10 9.5" {...stroke} />
+      </svg>
+    ),
+  }[data.dir || 'right']
+
   return (
     <div style={{
       position: 'relative', display: 'flex', alignItems: 'center', gap: 7,
