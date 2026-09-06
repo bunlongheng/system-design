@@ -91,6 +91,13 @@ const blocks = (x1, y1, x2, y2, rects) => rects.some(r => {
   return false
 })
 
+// The edge's own two boxes, pulled in far enough that a leg leaving the border
+// does not count, but a leg cutting through the middle does. Without this a
+// route could turn a corner INSIDE the box it just left - every crossing left on
+// the final diagram was an edge crossing its own source or target.
+const OWN_SHRINK = 12
+const shrink = r => ({ x: r.x + OWN_SHRINK, y: r.y + OWN_SHRINK, w: r.w - 2 * OWN_SHRINK, h: r.h - 2 * OWN_SHRINK })
+
 const clearPolyline = (pts, rects) => {
   for (let i = 1; i < pts.length; i++) {
     if (blocks(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, rects)) return false
@@ -110,6 +117,18 @@ const lanes = (mid, rects, axis, own = []) => {
   for (const r of rects) {
     if (axis === 'x') { out.push(r.x - LANE, r.x + r.w + LANE) }
     else { out.push(r.y - LANE, r.y + r.h + LANE) }
+  }
+  // Two rails outside everything. A route boxed in on all sides still has these
+  // to escape along, which is what stops the last few edges falling back to a
+  // path that cuts through a node.
+  if (rects.length) {
+    if (axis === 'x') {
+      out.push(Math.min(...rects.map(r => r.x)) - 2 * LANE,
+               Math.max(...rects.map(r => r.x + r.w)) + 2 * LANE)
+    } else {
+      out.push(Math.min(...rects.map(r => r.y)) - 2 * LANE,
+               Math.max(...rects.map(r => r.y + r.h)) + 2 * LANE)
+    }
   }
   const insideOwn = c => own.some(r => axis === 'x'
     ? c > r.x - HIT_PAD && c < r.x + r.w + HIT_PAD
@@ -270,17 +289,19 @@ export function GradientEdge({
     const axis = sHoriz && tHoriz ? 'x' : (!sHoriz && !tHoriz ? 'y' : null)
     const sRect = { x: sourceNode.internals.positionAbsolute.x, y: sourceNode.internals.positionAbsolute.y, w: sourceNode.measured.width, h: sourceNode.measured.height }
     const tRect = { x: targetNode.internals.positionAbsolute.x, y: targetNode.internals.positionAbsolute.y, w: targetNode.measured.width, h: targetNode.measured.height }
+    // Everything a leg must miss: other boxes, plus the cores of its own two.
+    const guard = [...obstacles, shrink(sRect), shrink(tRect)]
     let pts = null
     if (axis) {
       const mid = axis === 'x' ? (sx + tx) / 2 : (sy + ty) / 2
       for (const c of lanes(mid, obstacles, axis, [sRect, tRect])) {
         const cand = routePoints(S, T, sHoriz, tHoriz, c)
-        if (clearPolyline(cand, obstacles)) { pts = cand; break }
+        if (clearPolyline(cand, guard)) { pts = cand; break }
       }
       if (!pts) {
         // Nothing clear on these faces - go over the top (or round the side).
-        pts = detour(sRect, tRect, obstacles, axis === 'y')
-          || detour(sRect, tRect, obstacles, axis !== 'y')
+        pts = detour(sRect, tRect, guard, axis === 'y')
+          || detour(sRect, tRect, guard, axis !== 'y')
           || routePoints(S, T, sHoriz, tHoriz, mid)
       }
     } else {
@@ -288,9 +309,9 @@ export function GradientEdge({
       // other way round, then give up on the L and go over/around instead.
       const a = routePoints(S, T, sHoriz, tHoriz, 0)
       const b = sHoriz ? [S, { x: S.x, y: T.y }, T] : [S, { x: T.x, y: S.y }, T]
-      pts = clearPolyline(a, obstacles) ? a
-        : clearPolyline(b, obstacles) ? b
-          : (detour(sRect, tRect, obstacles, false) || detour(sRect, tRect, obstacles, true) || a)
+      pts = clearPolyline(a, guard) ? a
+        : clearPolyline(b, guard) ? b
+          : (detour(sRect, tRect, guard, false) || detour(sRect, tRect, guard, true) || a)
     }
     path = roundedPath(pts)
     const m = pts[Math.floor(pts.length / 2)]
