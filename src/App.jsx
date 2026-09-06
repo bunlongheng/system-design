@@ -240,9 +240,13 @@ export default function App() {
     fetch('/api/auth/logout', { method: 'POST' }).then(() => { setUser(null); showToastMsg('Signed out') }).catch(() => showToastMsg('Sign out failed'))
   }
 
-  function deleteDiagram(id) {
+  function deleteDiagram(id, { thenBack = false } = {}) {
     fetch(`/api/system-designs/${id}`, { method: 'DELETE' }).then(res => {
       if (!res.ok) { showToastMsg('Delete failed'); return }
+      // Deleting the diagram you are looking at has to leave the canvas too,
+      // or you are staring at something that no longer exists.
+      if (thenBack) { setView('index'); setActiveDiagram(null) }
+      showToastMsg('Deleted')
       loadDiagrams()
     }).catch(() => showToastMsg('Delete failed'))
   }
@@ -747,6 +751,7 @@ export default function App() {
       nodes={displayNodes} edges={displayEdges} onNodesChange={onNodesChange}
       onNodeDragStop={onNodeDragStop} snapGuides={snapGuides}
       canUndo={history.past.length > 0} canRedo={history.future.length > 0} onUndo={undo} onRedo={redo}
+      onDeleteDiagram={canAI && activeDiagram?.id ? () => deleteDiagram(activeDiagram.id, { thenBack: true }) : undefined}
       exportPng={exportPng} exportCode={exportCode} exportJson={exportJson}
       copyLink={copyLink} copiedLink={copiedLink}
       shareAction={shareAction} copiedShare={copiedShare}
