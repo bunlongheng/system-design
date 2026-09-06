@@ -191,23 +191,7 @@ export function GradientEdge({
         </linearGradient>
       </defs>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={{ stroke: `url(#${gid})`, strokeWidth: 1.5 }} />
-      {hasStep && (() => {
-        // On its own edge's midpoint, nudged clear of the label pill. Anchoring
-        // it near the target instead would stack every marker on one spot,
-        // because all the edges arriving at a node share an anchor.
-        const dx = tx - sx, dy = ty - sy
-        const L = Math.hypot(dx, dy) || 1
-        const px = -dy / L, py = dx / L
-        const cx = labelX + px * 15, cy = labelY + py * 15
-        return (
-          <g className="sd-step-dot" pointerEvents="none">
-            <circle cx={cx} cy={cy} r={6.5} fill="#fff" stroke={c2} strokeWidth={1.5} />
-            <text x={cx} y={cy} fill={c2} fontSize={7.5} fontWeight={800}
-              textAnchor="middle" dominantBaseline="central">{data.step}</text>
-          </g>
-        )
-      })()}
-      {label && (
+      {(label || hasStep) && (
         <EdgeLabelRenderer>
           <div
             className="sd-edge-badge"
@@ -216,6 +200,7 @@ export function GradientEdge({
               '--c1': c1, '--c2': c2,
             }}
           >
+            {hasStep && <span className="sd-step-chip">{data.step}</span>}
             {label && <span>{label}</span>}
           </div>
         </EdgeLabelRenderer>

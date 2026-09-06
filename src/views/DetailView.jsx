@@ -497,10 +497,21 @@ export function DetailView({
         .sd-badge-plain .sd-edge-badge {
           color: #1e2733; border: 1.5px solid #c2c6cc; background: #e9ebee;
         }
-        /* Step numbers ride ON the edge (drawn in GradientEdge), so the toggle
-           just shows or hides those markers. */
-        .sd-step-dot { display: none; }
-        .sd-steps-on .sd-step-dot { display: inline; }
+        /* Step number, first thing in the badge - hidden until Steps is on. */
+        .sd-step-chip { display: none; }
+        .sd-steps-on .sd-step-chip {
+          display: inline-flex; align-items: center; justify-content: center;
+          /* Deliberately smaller than the badge's text line, so the circle sits
+             INSIDE the pill with clearance top and bottom instead of pressing
+             against the border. */
+          min-width: 12px; height: 12px; padding: 0 2.5px; border-radius: 999px;
+          font-size: 8px; font-weight: 800; line-height: 1;
+          background: #1c1e21; color: #fff; flex-shrink: 0;
+        }
+        /* On a dark badge a dark chip would vanish - flip it. */
+        .sd-badge-dark .sd-step-chip, .sd-badge-color .sd-step-chip {
+          background: #fff; color: #1c1e21;
+        }
         /* On phones the fixed-width side panels would crush the canvas, so drop
            them to full-width bottom sheets over the canvas instead. */
         @media (max-width: 640px) {
