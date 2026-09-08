@@ -15,6 +15,7 @@ export function IndexView({
   toast, showToastMsg,
   search, setSearch,
   user, canAI, isDemo, listError,
+  galleryTab, setGalleryTab,
   showMenu, setShowMenu, menuRef,
   showDocs, setShowDocs,
   copiedLabel, onCopyFormat,
@@ -117,6 +118,23 @@ export function IndexView({
 
           <div style={{ flex: 1 }} />
 
+          {/* Demos / My Diagrams tab toggle - owner only, top-right button group,
+              same header row (no new row). Public /demo never shows it. */}
+          {!isDemo && canAI && (
+            <div style={{ display: 'inline-flex', background: '#f0f1f3', borderRadius: 9, padding: 3, flexShrink: 0 }}>
+              {[['mine', 'My Diagrams'], ['demos', 'Demos']].map(([key, label]) => (
+                <button key={key} onClick={() => setGalleryTab(key)}
+                  style={{
+                    padding: '6px 13px', fontSize: 12.5, fontWeight: 600, fontFamily: 'inherit',
+                    border: 'none', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap',
+                    background: galleryTab === key ? '#ffffff' : 'transparent',
+                    color: galleryTab === key ? '#1c1e21' : '#8a8d91',
+                    boxShadow: galleryTab === key ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                    transition: 'background 0.15s, color 0.15s',
+                  }}>{label}</button>
+              ))}
+            </div>
+          )}
 
           {/* Avatar / Menu - owner only */}
           {!isDemo && (

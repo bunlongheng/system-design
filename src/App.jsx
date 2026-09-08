@@ -145,6 +145,10 @@ export default function App() {
   const [copiedShare, setCopiedShare] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
   const [diagrams, setDiagrams] = useState(isDemo ? [] : SEED)
+  // Logged-in home has two tabs (top-right button group): 'mine' = my personal
+  // (non-demo) diagrams, 'demos' = the 12 curated public demos so the owner can
+  // reopen + re-arrange them and have the layout persist. Public /demo ignores this.
+  const [galleryTab, setGalleryTab] = useState('mine') // 'mine' | 'demos'
   const [loadingId, setLoadingId] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [listError, setListError] = useState(false) // gallery fetch failed
@@ -200,11 +204,15 @@ export default function App() {
   }, [showAIPrompt, showDocs])
 
   const loadDiagrams = useCallback(() => {
-    return fetch(isDemo ? '/api/system-designs/public' : '/api/system-designs')
+    // Showcase view = the public /demo route OR the owner's "Demos" tab -> the 12
+    // curated public designs. Otherwise the owner's personal (non-demo) diagrams.
+    const showcase = isDemo || galleryTab === 'demos'
+    return fetch(showcase ? '/api/system-designs/public' : '/api/system-designs')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(rows => {
         const mapped = rows.map(r => ({
           id: r.id,
+          slug: r.slug || '',
           title: r.title,
           description: r.description || '',
           pattern: r.pattern || '',
@@ -213,17 +221,17 @@ export default function App() {
           updatedAt: r.created_at,
           tags: r.tags || [],
         }))
-        // On /demo never show the IFTTT SEED sample - only real public demos.
+        // Never fall back to the IFTTT SEED sample in a showcase view - only real demos.
         setListError(false)
-        setDiagrams(mapped.length ? mapped : (isDemo ? [] : SEED))
+        setDiagrams(mapped.length ? mapped : (showcase ? [] : SEED))
       })
       .catch(() => {
         // An unreachable API used to look identical to "you have one diagram":
         // it fell through to the sample and the gallery said nothing. Say it.
         setListError(true)
-        setDiagrams(isDemo ? [] : SEED)
+        setDiagrams(showcase ? [] : SEED)
       })
-  }, [isDemo])
+  }, [isDemo, galleryTab])
 
   useEffect(() => { loadDiagrams() }, [loadDiagrams])
 
@@ -318,6 +326,15 @@ export default function App() {
     setEdges(e)
     setView('detail')
     pendingFit.current = true
+    // Readable deep link: /demo?name=<slug>. A diagram with no slug (AI-generated
+    // or pasted, so nothing saved yet) leaves the URL alone - there is nothing to
+    // link to. ?id= is still honoured on load for older shared links.
+    if (d.slug) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('id')
+      url.searchParams.set('name', d.slug)
+      window.history.replaceState({}, '', url)
+    }
   }
 
   // Persist the canvas layout (owner only) a beat after a drag ends, so a
@@ -521,7 +538,7 @@ export default function App() {
     fetch(`/api/system-designs/${id}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(d => {
-        openDiagram({ id: d.id, title: d.title, description: d.description || '', data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] })
+        openDiagram({ id: d.id, slug: d.slug || '', title: d.title, description: d.description || '', pattern: d.pattern || '', data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] })
         setLoadingId(false)
       })
       .catch(() => {
@@ -530,10 +547,30 @@ export default function App() {
       })
   }, [])
 
+  // Open a diagram straight from a readable ?name=<slug> URL (the link the
+  // detail view now writes). The owner's list is checked first so a private
+  // design resolves, then the public demo roster so a shared /demo?name= link
+  // works for a signed-out visitor. A list that 401s or fails just contributes
+  // no rows - the other one still gets a chance.
+  useEffect(() => {
+    const name = new URLSearchParams(window.location.search).get('name')
+    if (!name) return
+    setLoadingId(true)
+    const lists = isDemo ? ['/api/system-designs/public'] : ['/api/system-designs', '/api/system-designs/public']
+    Promise.all(lists.map(u => fetch(u).then(r => (r.ok ? r.json() : [])).catch(() => [])))
+      .then(all => {
+        const row = all.flat().find(r => r.slug === name)
+        if (!row) { setLoadError(true); setLoadingId(false); return }
+        openDiagram({ id: row.id, slug: row.slug, title: row.title, description: row.description || '', pattern: row.pattern || '', difficulty: row.difficulty ?? null, data: { nodes: row.nodes, edges: row.edges }, updatedAt: row.created_at, tags: row.tags || [] })
+        setLoadingId(false)
+      })
+  }, [isDemo])
+
   function backToGallery() {
     setLoadError(false)
     const url = new URL(window.location.href)
     url.searchParams.delete('id')
+    url.searchParams.delete('name')
     window.history.replaceState({}, '', url)
     setView('index')
   }
@@ -609,7 +646,8 @@ export default function App() {
   // Shared /?id= diagram views stay public (handled by the detail view); only the
   // home/gallery requires sign-in. While the auth check is in flight, show the
   // animated graph splash so an authed owner never flashes the sign-in card.
-  const hasIdParam = Boolean(new URLSearchParams(window.location.search).get('id'))
+  const q = new URLSearchParams(window.location.search)
+  const hasIdParam = Boolean(q.get('id') || q.get('name'))
   if (view === 'index' && !hasIdParam && !devBypass && !isDemo) {
     if (!authChecked) return <SignInScreen loading />
     if (!user) return <SignInScreen devBypass={() => setDevBypass(true)} />
@@ -622,6 +660,7 @@ export default function App() {
         toast={toast} showToastMsg={showToastMsg}
         search={search} setSearch={setSearch}
         user={user} canAI={canAI} isDemo={isDemo} listError={listError}
+        galleryTab={galleryTab} setGalleryTab={setGalleryTab}
         showMenu={showMenu} setShowMenu={setShowMenu} menuRef={menuRef}
         showDocs={showDocs} setShowDocs={setShowDocs}
         copiedLabel={copiedLabel} onCopyFormat={copyFormat}

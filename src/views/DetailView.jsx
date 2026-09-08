@@ -42,7 +42,7 @@ export function DetailView({
 
       {/* Header — diagrams-style floating pill toolbar. Scrolls horizontally on
           narrow screens so every action stays reachable instead of clipping. */}
-      <header style={{
+      <header className="sd-detail-header" style={{
         height: 54, background: 'linear-gradient(180deg, #fbfbfc 0%, #eef0f3 100%)', borderBottom: '1px solid #e4e7ea',
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0,
         overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch',
@@ -72,7 +72,7 @@ export function DetailView({
             <img src={brand.icon} alt="" width={15} height={15} style={{ objectFit: 'contain' }} />
           </span>
         )}
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+        <span className="sd-detail-title" style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
           {activeDiagram?.title || 'Untitled diagram'}
         </span>
 
@@ -95,7 +95,7 @@ export function DetailView({
           boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: '4px 6px',
         }}>
           {/* Code toggle */}
-          <button onClick={() => setShowDetailCode(v => !v)} style={{
+          <button className="sd-hide-mobile" onClick={() => setShowDetailCode(v => !v)} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: showDetailCode ? '#f1f5f9' : 'transparent',
@@ -109,13 +109,13 @@ export function DetailView({
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
             </svg>
-            Code
+            <span className="sd-btn-label">Code</span>
           </button>
 
-          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+          <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Fit button */}
-          <button onClick={() => rfInstanceRef.current?.fitView({ padding: 0.12, duration: 400 })} style={{
+          <button className="sd-hide-mobile" onClick={() => rfInstanceRef.current?.fitView({ padding: 0.12, duration: 400 })} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: 'transparent', color: '#64748b',
@@ -128,13 +128,13 @@ export function DetailView({
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
             </svg>
-            Fit
+            <span className="sd-btn-label">Fit</span>
           </button>
 
-          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+          <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Auto-arrange: re-lay-out left-to-right, spread out, step-ordered, then fit */}
-          <button onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
+          <button className="sd-hide-mobile" onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: 'transparent', color: '#64748b',
@@ -147,7 +147,7 @@ export function DetailView({
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4M17.5 10v4M6.5 10v7.5H10"/>
             </svg>
-            Arrange
+            <span className="sd-btn-label">Arrange</span>
           </button>
 
           {/* Undo / redo. They appear once there IS something to undo, so a
@@ -171,37 +171,14 @@ export function DetailView({
               <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d={b.d} />
               </svg>
-              {b.label}
+              <span className="sd-btn-label">{b.label}</span>
             </button>
           ))}
 
-          {/* Delete this diagram, always behind a modal - it is the one
-              irreversible action here, since the API hard-deletes the row.
-              Ownership is decided in App: the handler is only passed down when
-              you can actually edit, so there is one gate, not two. */}
-          {onDeleteDiagram && (
-            <button onClick={() => setConfirmDelete(true)} title="Delete this diagram" style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
-              background: 'transparent', color: '#dc2626',
-              cursor: 'pointer', fontSize: 13, fontWeight: 400,
-              transition: 'all 0.1s', fontFamily: 'inherit', flexShrink: 0,
-            }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#fef2f2')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
-              </svg>
-              Delete
-            </button>
-          )}
-
-          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+          <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Details (goal + steps) panel toggle */}
-          <button onClick={() => setShowDetailsPanel(v => !v)} style={{
+          <button className="sd-hide-mobile" onClick={() => setShowDetailsPanel(v => !v)} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: showDetailsPanel ? '#f1f5f9' : 'transparent',
@@ -215,10 +192,10 @@ export function DetailView({
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
             </svg>
-            Details
+            <span className="sd-btn-label">Details</span>
           </button>
 
-          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+          <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Steps toggle */}
           <button onClick={() => setShowSteps(v => !v)} style={{
@@ -236,10 +213,10 @@ export function DetailView({
               <line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/>
               <path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>
             </svg>
-            Steps
+            <span className="sd-btn-label">Steps</span>
           </button>
 
-          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+          <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Badge style cycle: silver -> color -> dark -> plain */}
           <button onClick={() => {
@@ -259,10 +236,10 @@ export function DetailView({
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
             </svg>
-            {{ silver: 'Silver', color: 'Color', dark: 'Dark', plain: 'Plain' }[badgeMode]}
+            <span className="sd-btn-label">{{ silver: 'Silver', color: 'Color', dark: 'Dark', plain: 'Plain' }[badgeMode]}</span>
           </button>
 
-          <div style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+          <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Share toggle */}
           <button onClick={() => setShowSharePanel(v => !v)} style={{
@@ -279,8 +256,33 @@ export function DetailView({
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
             </svg>
-            Share
+            <span className="sd-btn-label">Share</span>
           </button>
+
+          {/* Delete lives last, past Share, because it is the one action here
+              you cannot take back, always behind a modal - it is the one
+              - the API hard-deletes the row. Ownership is decided in App: the
+              handler is only passed down when you can actually edit, so there
+              is one gate, not two. */}
+          {onDeleteDiagram && (
+            <button onClick={() => setConfirmDelete(true)} title="Delete this diagram" style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
+              background: 'transparent', color: '#dc2626',
+              cursor: 'pointer', fontSize: 13, fontWeight: 400,
+              transition: 'all 0.1s', fontFamily: 'inherit', flexShrink: 0,
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#fef2f2')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+              <span className="sd-btn-label">Delete</span>
+            </button>
+          )}
+
 
         </div>
       </header>
@@ -473,6 +475,12 @@ export function DetailView({
       {/* Public footer - only on a demoed (public) diagram, never owner views */}
       {/* Delete confirmation. The API hard-deletes - there is no trash to
           recover from - so the modal names the diagram and says so plainly. */}
+      {/* Screen takes damage. A red vignette pulses in from the edges the moment
+          delete is armed, so the danger is felt before the wording is read -
+          the same trick a shooter uses when you are about to go down. Sits
+          under the dialog, over everything else, and never takes a click. */}
+      {confirmDelete && <div className="sd-danger" aria-hidden="true" />}
+
       {confirmDelete && (
         <div onClick={() => setConfirmDelete(false)} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.28)', backdropFilter: 'blur(6px)',
@@ -553,6 +561,45 @@ export function DetailView({
         /* 4) Plain silver, black text */
         .sd-badge-plain .sd-edge-badge {
           color: #1e2733; border: 1.5px solid #c2c6cc; background: #e9ebee;
+        }
+        /* Phone: the toolbar must fit without scrolling sideways. Labels drop to
+           icons, and the 4 actions with a gesture equivalent (Code, Fit,
+           Arrange, Details) drop out entirely - pinch and drag already cover
+           fit and pan, and the panels are reachable once the canvas is open. */
+        @media (max-width: 640px) {
+          .sd-detail-header {
+            overflow-x: hidden !important;
+            padding: 0 8px !important;
+            gap: 2px !important;
+          }
+          .sd-detail-header .sd-btn-label { display: none; }
+          .sd-detail-header .sd-hide-mobile { display: none !important; }
+          /* Dividers separate groups that no longer exist once the labels and
+             the 4 desktop-only actions are gone - left in, they stack into a
+             row of stray bars. */
+          .sd-detail-header .sd-divider { display: none; }
+          .sd-detail-header button { padding: 0 8px !important; }
+          /* The title has to yield, not push the buttons off-screen. */
+          .sd-detail-title {
+            min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-size: 13px !important;
+          }
+        }
+
+        /* Delete is armed: pulse the canvas red from the edges in. */
+        @keyframes sd-danger-pulse {
+          0%, 100% { opacity: 0.5; }
+          50%      { opacity: 1; }
+        }
+        .sd-danger {
+          position: fixed; inset: 0; pointer-events: none; z-index: 1150;
+          box-shadow: inset 0 0 150px 45px rgba(220, 38, 38, 0.55),
+                      inset 0 0 40px 6px rgba(185, 28, 28, 0.35);
+          animation: sd-danger-pulse 1.05s ease-in-out infinite;
+        }
+        /* Anyone who asked for less motion still gets the red, just steady. */
+        @media (prefers-reduced-motion: reduce) {
+          .sd-danger { animation: none; opacity: 0.75; }
         }
         /* Step number, first thing in the badge - hidden until Steps is on. */
         .sd-step-chip { display: none; }
