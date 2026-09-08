@@ -33,10 +33,10 @@ const OWNER_EMAIL = "owner@example.com";
 
 // No `socket` property -> isLocal() falls through to the false branch, and
 // NODE_ENV=production keeps the prod gate deterministic.
-function req(method, id, auth, cookie) {
+function req(method, id, auth, cookie, extraQuery = {}) {
   return {
     method,
-    query: { id },
+    query: { id, ...extraQuery },
     headers: { host: "system-design-bheng.vercel.app", authorization: auth, cookie },
   };
 }
@@ -97,13 +97,30 @@ describe("/api/system-designs/:id", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("DELETE with a valid owner session cookie returns 200 { deleted: true }", async () => {
+  it("DELETE is a SOFT delete: stamps deleted_at and says it is recoverable", async () => {
     query.mockResolvedValueOnce({ rowCount: 1 });
     const res = mockRes();
     const cookie = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
     await systemDesignById(req("DELETE", ID, undefined, cookie), res);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ deleted: true });
+    expect(res.body).toEqual({ deleted: true, recoverable: true });
+    // The row is updated, never removed.
+    const [sql] = query.mock.calls[0];
+    expect(sql).toMatch(/UPDATE system_designs SET deleted_at = now\(\)/);
+    expect(sql).not.toMatch(/DELETE FROM/);
+  });
+
+  it("DELETE ?purge=1 hard-deletes, and ONLY a row already in trash", async () => {
+    query.mockResolvedValueOnce({ rowCount: 1 });
+    const res = mockRes();
+    const cookie = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
+    await systemDesignById(req("DELETE", ID, undefined, cookie, { purge: "1" }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ purged: true });
+    const [sql] = query.mock.calls[0];
+    expect(sql).toMatch(/DELETE FROM system_designs/);
+    // The guard that makes destroying anything take two deliberate steps.
+    expect(sql).toMatch(/deleted_at IS NOT NULL/);
   });
 
   it("DELETE with a valid Bearer header (no owner session) returns 401 and never queries the db", async () => {

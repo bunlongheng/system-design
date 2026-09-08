@@ -260,11 +260,12 @@ export function DetailView({
             <span className="sd-btn-label">Share</span>
           </button>
 
-          {/* Delete lives last, past Share, because it is the one action here
-              you cannot take back, always behind a modal - it is the one
-              - the API hard-deletes the row. Ownership is decided in App: the
-              handler is only passed down when you can actually edit, so there
-              is one gate, not two. */}
+          {/* Delete lives last, past Share, and always behind a modal, because
+              it is the one destructive action in this bar. It is a SOFT delete -
+              the row is stamped deleted_at and kept in trash, so a mistake is
+              recoverable. Ownership is decided in App: the handler is only
+              passed down when you can actually edit, so there is one gate,
+              not two. */}
           {onDeleteDiagram && (
             <button onClick={() => setConfirmDelete(true)} title="Delete this diagram" style={{
               display: 'flex', alignItems: 'center', gap: 6,
@@ -491,8 +492,9 @@ export function DetailView({
       </div>
 
       {/* Public footer - only on a demoed (public) diagram, never owner views */}
-      {/* Delete confirmation. The API hard-deletes - there is no trash to
-          recover from - so the modal names the diagram and says so plainly. */}
+      {/* Delete confirmation. Delete is a SOFT delete now - the row is stamped
+          deleted_at and sits in trash - so the modal says it is recoverable
+          rather than final. It still names the diagram before removing it. */}
       {/* Screen takes damage. A red vignette pulses in from the edges the moment
           delete is armed, so the danger is felt before the wording is read -
           the same trick a shooter uses when you are about to go down. Sits
@@ -517,8 +519,8 @@ export function DetailView({
               <h2 id="sd-del-title" style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', margin: 0 }}>Delete this diagram?</h2>
             </div>
             <p style={{ fontSize: 13, color: '#65676b', lineHeight: 1.6, margin: '0 0 20px' }}>
-              <b style={{ color: '#1c1e21' }}>{activeDiagram?.title || 'This diagram'}</b> will be removed permanently.
-              There is no trash and no undo - the row is deleted outright.
+              <b style={{ color: '#1c1e21' }}>{activeDiagram?.title || 'This diagram'}</b> will be moved to trash.
+              It disappears from the gallery and from any shared link, but it is kept and can be restored.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setConfirmDelete(false)} style={{ padding: '9px 18px', border: '1px solid #e4e6e8', borderRadius: 10, background: '#f4f5f7', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', color: '#65676b', fontWeight: 600 }}>Cancel</button>

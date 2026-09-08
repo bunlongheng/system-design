@@ -86,4 +86,8 @@ test("public round-trip: create -> 201 {url} -> GET renders -> DELETE", async ({
   });
   expect(del.status()).toBe(200);
   expect((await del.json()).deleted).toBe(true);
+  // Delete is soft - purge so the suite does not leave a row in trash each run.
+  await request.delete(`/api/system-designs/${id}?purge=1`, {
+    headers: { Cookie: OWNER_COOKIE },
+  });
 });

@@ -50,6 +50,7 @@ test("the /?id= URL renders the design in the browser", async ({ page, baseURL }
     expect(nodeCount).toBe(DESIGN.nodes.length);
   } finally {
     await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+    await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } });
     await api.dispose();
   }
 });
@@ -79,6 +80,7 @@ test("the /?name= URL renders the design in the browser", async ({ page, baseURL
     expect(page.url()).toContain(`name=${row.slug}`);
   } finally {
     await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+    await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } });
     await api.dispose();
   }
 });
