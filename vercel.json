@@ -1,7 +1,27 @@
 {
   "ignoreCommand": "git log -1 --format=%s | grep -qE '^(chore|ci|test|docs):'",
-  "buildCommand": "node scripts/gen-icon-manifest.mjs && if [ \"$VERCEL_ENV\" = \"production\" ]; then node db/migrate.mjs; fi && vite build",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node db/migrate.mjs; fi && npm run build",
   "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "name"
+        }
+      ],
+      "destination": "/api/share"
+    },
+    {
+      "source": "/demo",
+      "has": [
+        {
+          "type": "query",
+          "key": "name"
+        }
+      ],
+      "destination": "/api/share"
+    },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"

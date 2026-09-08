@@ -30,3 +30,6 @@ playwright-report
 *.sln
 *.sw?
 .vercel
+
+# Generated at build time from dist/index.html (asset hashes change every build)
+lib/share-shell.js

@@ -9,7 +9,7 @@ export default defineConfig({
   retries: 0,
   use: { baseURL: BASE },
   projects: [
-    { name: "api", testMatch: /api\.spec\.js/ },
+    { name: "api", testMatch: /(api|share)\.spec\.js/ },
     { name: "browser", testMatch: /(render|snap|arrange-undo)\.spec\.js/, use: { browserName: "chromium" } },
   ],
   webServer: {

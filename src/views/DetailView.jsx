@@ -26,6 +26,7 @@ export function DetailView({
   detailCodeCopied, setDetailCodeCopied,
   nodes, edges, onNodesChange, onNodeDragStop, snapGuides = [],
   exportPng, exportCode, exportJson, copyLink, copiedLink, shareAction, copiedShare, copyCode, copiedCode,
+  shareSlug, shareUrl,
   showDocs, setShowDocs, copiedLabel, onCopyFormat,
   showToastMsg,
   isPublic,
@@ -434,6 +435,23 @@ export function DetailView({
             animation: 'sd-slide-right 0.2s ease-out',
           }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 16 }}>Export & Share</div>
+
+            {/* Sneak peek: the exact 1200x630 card Slack, iMessage and X will
+                render for this link. Shown only for a saved design with a slug -
+                an unsaved or pasted diagram has no public URL to preview. */}
+            {shareSlug && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 6 }}>Link preview</div>
+                <img
+                  src={`/api/og?name=${encodeURIComponent(shareSlug)}`}
+                  alt="Share card preview"
+                  width={208} height={109}
+                  style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff' }}
+                  onError={e => { e.currentTarget.style.display = 'none' }}
+                />
+                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6, wordBreak: 'break-all', lineHeight: 1.4 }}>{shareUrl}</div>
+              </div>
+            )}
 
             {/* Download grid — exact diagrams app colors */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
