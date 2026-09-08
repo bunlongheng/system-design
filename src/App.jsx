@@ -101,6 +101,16 @@ function buildMarkers(nodes, edges) {
 const defaultEdges = buildEdges(diagramData.edges)
 const defaultNodes = diagramData.nodes.map(n => ({ ...n, type: 'awsNode', data: { id: n.id } }))
 
+// Where a shared link has to point. Sharing from localhost (or a Vercel preview)
+// must still hand someone a URL that opens for them, so the origin is pinned to
+// prod unless we are already served from a real host. Mirrors the diagrams app.
+const PROD_ORIGIN = 'https://system-design-bheng.vercel.app'
+const publicOrigin = () => {
+  if (typeof window === 'undefined') return PROD_ORIGIN
+  const { origin, hostname } = window.location
+  return hostname === 'localhost' || hostname === '127.0.0.1' ? PROD_ORIGIN : origin
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 // Sample diagrams for index page (fallback when the API has none saved)
@@ -681,6 +691,14 @@ export default function App() {
 
   // ── Export/Share functions ───────────────────────────────────────────────────
 
+  // The link every share path hands out: the readable ?name= URL on the public
+  // origin. A diagram with no slug (unsaved, AI-generated, pasted) has no public
+  // URL, so it falls back to whatever is in the address bar.
+  const shareSlug = activeDiagram?.slug || ''
+  const shareUrl = shareSlug
+    ? `${publicOrigin()}${isDemo ? '/demo' : '/'}?name=${encodeURIComponent(shareSlug)}`
+    : (typeof window !== 'undefined' ? window.location.href : PROD_ORIGIN)
+
   function exportFilename(ext) {
     const t = (activeDiagram?.title || 'diagram').replace(/[^a-z0-9]/gi, '-').toLowerCase()
     const now = new Date()
@@ -720,7 +738,7 @@ export default function App() {
   }
 
   function copyLink() {
-    const url = window.location.href
+    const url = shareUrl
     navigator.clipboard.writeText(url).then(() => {
       setCopiedLink(true); setTimeout(() => setCopiedLink(false), 1500)
       showToastMsg('Link copied!')
@@ -728,7 +746,7 @@ export default function App() {
   }
 
   function shareAction() {
-    const url = window.location.href
+    const url = shareUrl
     if (navigator.share) {
       navigator.share({ title: activeDiagram?.title || 'System Design', url }).catch(() => {})
     } else {
@@ -790,6 +808,7 @@ export default function App() {
       nodes={displayNodes} edges={displayEdges} onNodesChange={onNodesChange}
       onNodeDragStop={onNodeDragStop} snapGuides={snapGuides}
       canUndo={history.past.length > 0} canRedo={history.future.length > 0} onUndo={undo} onRedo={redo}
+      shareSlug={shareSlug} shareUrl={shareUrl}
       onDeleteDiagram={canAI && activeDiagram?.id ? () => deleteDiagram(activeDiagram.id, { thenBack: true }) : undefined}
       exportPng={exportPng} exportCode={exportCode} exportJson={exportJson}
       copyLink={copyLink} copiedLink={copiedLink}

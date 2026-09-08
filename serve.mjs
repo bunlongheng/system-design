@@ -14,6 +14,8 @@ import listPublicSystemDesigns from "./lib/handlers/list-public-system-designs.j
 import generate from "./lib/handlers/generate.js";
 import health from "./lib/handlers/health.js";
 import systemDesignById from "./lib/handlers/system-design-by-id.js";
+import ogImage from "./lib/handlers/og-image.js";
+import sharePage from "./lib/handlers/share-page.js";
 import authLogin from "./lib/handlers/auth-login.js";
 import authCallback from "./lib/handlers/auth-callback.js";
 import authMe from "./lib/handlers/auth-me.js";
@@ -47,9 +49,15 @@ app.post("/api/auth/logout", withErrors(authLogout));
 app.post("/api/ai/system-designs", withErrors(createSystemDesign));
 app.post("/api/ai/generate", withErrors(generate));
 app.get("/api/health", withErrors(health));
+app.get("/api/og", withErrors(ogImage));
 app.get("/api/system-designs", withErrors(listSystemDesigns));
 app.get("/api/system-designs/public", withErrors(listPublicSystemDesigns));
 app.all("/api/system-designs/:id", withErrors(systemDesignById));
+
+// Share URLs get the SPA shell with per-design OG tags injected - mirrors the
+// vercel.json rewrites, so a crawler sees the same head locally as in prod.
+// Must come before express.static, which would otherwise serve "/" from disk.
+app.get(["/", "/demo"], (req, res, next) => (req.query.name ? withErrors(sharePage)(req, res, next) : next()));
 
 // Static SPA + client-side routing fallback.
 const dist = path.join(__dirname, "dist");
