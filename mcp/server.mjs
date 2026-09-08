@@ -190,13 +190,12 @@ server.registerTool(
   {
     title: 'Update system design',
     description:
-      'Modify an existing diagram by id. Any of title, nodes, or edges you provide replaces that field; omitted fields are left unchanged. ' +
-      'ALWAYS prefer this over creating a "v2" of a diagram you already made - call list_system_designs to find the id. ' +
-      'Editing a diagram created within the last 24h needs nothing extra. Past 24h, pass "reason" to say why you are ' +
-      'rewriting older work; without a reason the edit is applied to a NEW copy instead, and the original is left untouched.',
+      'Modify an existing diagram by id, at any age. Any of title, nodes, or edges you provide replaces that field; ' +
+      'omitted fields are left unchanged. ALWAYS prefer this over creating a "v2" of a diagram that already exists - ' +
+      'call list_system_designs to find the id. Backfilling or correcting old diagrams is exactly what this is for.',
     inputSchema: {
       id: z.string().describe('The diagram id to update'),
-      reason: z.string().optional().describe('Why an older (>24h) diagram is being changed, e.g. "backfill: correct the Integry decommission date". Recorded on the row.'),
+      reason: z.string().optional().describe('Optional note on why, e.g. "backfill: correct the Integry decommission date". Recorded on the row as a trail; never required.'),
       title: z.string().optional(),
       nodes: z.array(z.object({
         id: z.string(), x: z.number().optional(), y: z.number().optional(),
@@ -216,42 +215,12 @@ server.registerTool(
         iconNodes = r.nodes
       }
 
-      // Read the target first: we need its age, and its current content to copy
-      // from if this turns into a fork.
-      const { rows: cur } = await db.query(
-        `SELECT id, title, nodes, edges, type, tags,
-                (now() - created_at) > interval '24 hours' AS stale
-         FROM system_designs WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-        [id, owner()],
-      )
-      if (!cur.length) return fail(`No owned diagram with id ${id} (it may be in trash - call list_trash)`)
-      const row = cur[0]
-
+      // No age gate. Any diagram is editable at any time - backfilling and
+      // correcting old work is the point of this tool, and a time limit only
+      // pushed agents into making a "v2" instead. `reason` stays optional and is
+      // recorded when given, as a trail rather than a toll.
       const nextNodes = iconNodes ? JSON.stringify(toStoredNodes(iconNodes)) : null
       const nextEdges = edges ? JSON.stringify(toStoredEdges(edges)) : null
-
-      // Older than a day and nobody said why -> never block, never silently
-      // rewrite history. Fork it: the edit lands on a new diagram and the
-      // original stays exactly as it was.
-      if (row.stale && !reason?.trim()) {
-        const newTitle = (title?.trim() || row.title)
-        const o = owner()
-        const slug = await uniqueSystemDesignSlug(o, newTitle)
-        const { rows: ins } = await db.query(
-          'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[]) RETURNING id',
-          [o, newTitle, slug, nextNodes ?? JSON.stringify(row.nodes), nextEdges ?? JSON.stringify(row.edges), row.type || 'system-design', row.tags || ['API']],
-        )
-        const newId = ins[0].id
-        return ok({
-          id: newId,
-          url: urlFor(newId),
-          forked_from: id,
-          warning:
-            `Diagram ${id} is more than 24h old, so your edit was applied to a NEW diagram (${newId}) and the ` +
-            `original was left untouched. If you meant to change the original in place, call update_system_design ` +
-            `again with the same id plus a "reason" explaining the change.`,
-        })
-      }
 
       const { rows } = await db.query(
         `UPDATE system_designs SET
@@ -263,12 +232,12 @@ server.registerTool(
          WHERE id = $1 AND user_id = $6 AND deleted_at IS NULL RETURNING id`,
         [id, title?.trim() ?? null, nextNodes, nextEdges, reason?.trim() ?? null, owner()],
       )
-      if (!rows.length) return fail(`No owned diagram with id ${id}`)
+      if (!rows.length) return fail(`No owned diagram with id ${id} (it may be in trash - call list_trash)`)
       return ok({
         id,
         url: urlFor(id),
         updated: { title: title != null, nodes: nodes != null, edges: edges != null },
-        ...(row.stale ? { edited_in_place: true, reason: reason.trim() } : {}),
+        ...(reason?.trim() ? { reason: reason.trim() } : {}),
       })
     } catch (e) { return fail(`update failed: ${e.message}`) }
   },

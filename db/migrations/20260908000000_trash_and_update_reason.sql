@@ -2,9 +2,9 @@
 -- cleanup is always recoverable. Every read path filters deleted_at IS NULL.
 ALTER TABLE system_designs ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 
--- Why an old diagram was edited. An update inside the first 24h is routine and
--- needs no reason; past that the caller has to say why, and it is kept here so
--- a backfill leaves a trail rather than a silent rewrite.
+-- Optional note on why a diagram was edited or trashed. Never required - any
+-- diagram is editable at any age - but when a caller gives one it is kept here,
+-- so a backfill leaves a trail rather than a silent rewrite.
 ALTER TABLE system_designs ADD COLUMN IF NOT EXISTS update_reason text;
 
 -- Trash listings and the "not deleted" filter both hit this.
