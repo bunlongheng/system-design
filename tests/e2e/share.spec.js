@@ -26,6 +26,13 @@ const DESIGN = {
   ],
 };
 
+// Delete is soft now, so a spec that only DELETEs leaves a row in trash on every
+// run. Purge afterwards so the suite cleans up after itself.
+async function purge(api, id) {
+  await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+  await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } });
+}
+
 // Creates the design, publishes it, hands (api, id, slug) to the body, cleans up.
 async function withPublicDesign(baseURL, body) {
   const api = await request.newContext({ baseURL });
@@ -44,7 +51,7 @@ async function withPublicDesign(baseURL, body) {
     expect(row.slug).toBeTruthy();
     await body(api, id, row.slug);
   } finally {
-    await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+    await purge(api, id);
     await api.dispose();
   }
 }
@@ -104,7 +111,7 @@ test("a PRIVATE design gets no card and no title - an unlisted link stays unlist
     expect(og.status()).toBe(302);
     expect(og.headers()["location"]).toBe("/og.png");
   } finally {
-    await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+    await purge(api, id);
     await api.dispose();
   }
 });
@@ -128,4 +135,39 @@ test("/api/og falls back to the static card for an unknown slug", async ({ baseU
   } finally {
     await api.dispose();
   }
+});
+
+// Delete is a SOFT delete: the row leaves every read path but is kept, so a
+// cleanup that removes the wrong diagram is always recoverable.
+test("DELETE moves a design to trash instead of destroying it", async ({ baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: { ...DESIGN, title: "E2E Trash Round Trip" },
+  });
+  const id = (await create.json()).url.split("/?id=")[1];
+
+  // Public, so its disappearance is observable without auth.
+  await api.patch(`/api/system-designs/${id}`, {
+    headers: { Cookie: OWNER_COOKIE, "Content-Type": "application/json" },
+    data: { is_public: true },
+  });
+  expect((await api.get(`/api/system-designs/${id}`)).status()).toBe(200);
+
+  const del = await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+  expect(del.status()).toBe(200);
+  expect((await del.json()).deleted).toBe(true);
+
+  // Gone from every read path...
+  expect((await api.get(`/api/system-designs/${id}`)).status()).toBe(404);
+  const og = await (await request.newContext({ baseURL, maxRedirects: 0 })).get(`/api/og?id=${id}`);
+  expect(og.status()).toBe(302);
+
+  // ...and deleting it again is a no-op, not a second destruction.
+  expect((await (await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } })).json()).deleted).toBe(false);
+
+  // ...until it is purged, which only works on something already trashed.
+  expect((await (await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } })).json()).purged).toBe(true);
+  expect((await (await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } })).json()).purged).toBe(false);
+  await api.dispose();
 });

@@ -13,6 +13,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import db from '../lib/db.js'
 import { uniqueSystemDesignSlug } from '../lib/slugs.js'
+import { titleBase, MIN_BASE_LEN } from '../lib/title-base.js'
 import { ownerId } from '../lib/auth-owner.js'
 import { SERVICES } from '../src/services.js'
 import { resolveNodeIcons } from '../lib/resolve-icon.js'
@@ -60,6 +61,24 @@ const logoGate = nodes => {
     : null
 }
 
+// The most recent OTHER diagram (last 7 days) whose title shares this one's base.
+async function similarRecent(userId, title, excludeId) {
+  const base = titleBase(title)
+  if (base.length < MIN_BASE_LEN) return null // too generic to accuse anything
+  const { rows } = await db.query(
+    `SELECT id, title, created_at FROM system_designs
+     WHERE user_id = $1 AND id <> $2 AND deleted_at IS NULL
+       AND created_at > now() - interval '7 days'
+     ORDER BY created_at DESC LIMIT 40`,
+    [userId, excludeId],
+  )
+  const hit = rows.find(r => titleBase(r.title) === base)
+  if (!hit) return null
+  const mins = Math.round((Date.now() - new Date(hit.created_at).getTime()) / 60000)
+  const age = mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`
+  return { id: hit.id, title: hit.title, age }
+}
+
 const server = new McpServer({ name: 'system-design', version: '1.0.0' })
 
 // ── Discover: how many diagrams, and their shape ────────────────────────────
@@ -73,7 +92,7 @@ server.registerTool(
   async () => {
     try {
       const { rows } = await db.query(
-        'SELECT id, title, slug, nodes, edges, created_at FROM system_designs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 200',
+        'SELECT id, title, slug, nodes, edges, created_at FROM system_designs WHERE user_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200',
         [owner()],
       )
       return ok({
@@ -98,7 +117,7 @@ server.registerTool(
   },
   async ({ id }) => {
     try {
-      const { rows } = await db.query('SELECT id, title, slug, nodes, edges FROM system_designs WHERE id = $1', [id])
+      const { rows } = await db.query('SELECT id, title, slug, nodes, edges, created_at FROM system_designs WHERE id = $1 AND deleted_at IS NULL', [id])
       if (!rows.length) return fail(`No diagram with id ${id}`)
       return ok({ ...rows[0], url: urlFor(id) })
     } catch (e) { return fail(`get failed: ${e.message}`) }
@@ -144,7 +163,23 @@ server.registerTool(
         [o, title.trim(), slug, JSON.stringify(storedNodes), JSON.stringify(storedEdges), 'system-design', ['MCP']],
       )
       const id = rows[0].id
-      return ok({ id, url: urlFor(id) })
+
+      // Version-spam guard. An agent that has lost the id of a diagram it just
+      // made tends to create "... v2", then "v2.1", then "v2.2" instead of
+      // editing. The row is still created (never block the caller), but the
+      // response points at the diagram it almost certainly meant to update.
+      const near = await similarRecent(o, title, id)
+      return ok({
+        id,
+        url: urlFor(id),
+        ...(near ? {
+          warning:
+            `A diagram named "${near.title}" (id ${near.id}) was created ${near.age} and looks like the same thing ` +
+            `under a different version suffix. If this was meant to be a revision, call update_system_design on ` +
+            `${near.id} and then delete_system_design on ${id} - do not keep making v2, v2.1, v2.2.`,
+          probably_update: near.id,
+        } : {}),
+      })
     } catch (e) { return fail(`create failed: ${e.message}`) }
   },
 )
@@ -154,9 +189,14 @@ server.registerTool(
   'update_system_design',
   {
     title: 'Update system design',
-    description: 'Modify an existing diagram by id. Any of title, nodes, or edges you provide replaces that field; omitted fields are left unchanged.',
+    description:
+      'Modify an existing diagram by id. Any of title, nodes, or edges you provide replaces that field; omitted fields are left unchanged. ' +
+      'ALWAYS prefer this over creating a "v2" of a diagram you already made - call list_system_designs to find the id. ' +
+      'Editing a diagram created within the last 24h needs nothing extra. Past 24h, pass "reason" to say why you are ' +
+      'rewriting older work; without a reason the edit is applied to a NEW copy instead, and the original is left untouched.',
     inputSchema: {
       id: z.string().describe('The diagram id to update'),
+      reason: z.string().optional().describe('Why an older (>24h) diagram is being changed, e.g. "backfill: correct the Integry decommission date". Recorded on the row.'),
       title: z.string().optional(),
       nodes: z.array(z.object({
         id: z.string(), x: z.number().optional(), y: z.number().optional(),
@@ -166,7 +206,7 @@ server.registerTool(
       edges: z.array(z.object({ source: z.string(), target: z.string(), label: z.string().optional() })).optional(),
     },
   },
-  async ({ id, title, nodes, edges }) => {
+  async ({ id, reason, title, nodes, edges }) => {
     try {
       let iconNodes = nodes
       if (nodes) {
@@ -175,40 +215,152 @@ server.registerTool(
         if (r.failed.length) return fail(`Could not fetch the remote icon for node(s): ${r.failed.join(', ')}.`)
         iconNodes = r.nodes
       }
+
+      // Read the target first: we need its age, and its current content to copy
+      // from if this turns into a fork.
+      const { rows: cur } = await db.query(
+        `SELECT id, title, nodes, edges, type, tags,
+                (now() - created_at) > interval '24 hours' AS stale
+         FROM system_designs WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [id, owner()],
+      )
+      if (!cur.length) return fail(`No owned diagram with id ${id} (it may be in trash - call list_trash)`)
+      const row = cur[0]
+
+      const nextNodes = iconNodes ? JSON.stringify(toStoredNodes(iconNodes)) : null
+      const nextEdges = edges ? JSON.stringify(toStoredEdges(edges)) : null
+
+      // Older than a day and nobody said why -> never block, never silently
+      // rewrite history. Fork it: the edit lands on a new diagram and the
+      // original stays exactly as it was.
+      if (row.stale && !reason?.trim()) {
+        const newTitle = (title?.trim() || row.title)
+        const o = owner()
+        const slug = await uniqueSystemDesignSlug(o, newTitle)
+        const { rows: ins } = await db.query(
+          'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[]) RETURNING id',
+          [o, newTitle, slug, nextNodes ?? JSON.stringify(row.nodes), nextEdges ?? JSON.stringify(row.edges), row.type || 'system-design', row.tags || ['API']],
+        )
+        const newId = ins[0].id
+        return ok({
+          id: newId,
+          url: urlFor(newId),
+          forked_from: id,
+          warning:
+            `Diagram ${id} is more than 24h old, so your edit was applied to a NEW diagram (${newId}) and the ` +
+            `original was left untouched. If you meant to change the original in place, call update_system_design ` +
+            `again with the same id plus a "reason" explaining the change.`,
+        })
+      }
+
       const { rows } = await db.query(
         `UPDATE system_designs SET
            title = COALESCE($2, title),
            nodes = COALESCE($3::jsonb, nodes),
-           edges = COALESCE($4::jsonb, edges)
-         WHERE id = $1 AND user_id = $5 RETURNING id`,
-        [
-          id,
-          title?.trim() ?? null,
-          iconNodes ? JSON.stringify(toStoredNodes(iconNodes)) : null,
-          edges ? JSON.stringify(toStoredEdges(edges)) : null,
-          owner(),
-        ],
+           edges = COALESCE($4::jsonb, edges),
+           update_reason = COALESCE($5, update_reason),
+           updated_at = now()
+         WHERE id = $1 AND user_id = $6 AND deleted_at IS NULL RETURNING id`,
+        [id, title?.trim() ?? null, nextNodes, nextEdges, reason?.trim() ?? null, owner()],
       )
       if (!rows.length) return fail(`No owned diagram with id ${id}`)
-      return ok({ id, url: urlFor(id), updated: { title: title != null, nodes: nodes != null, edges: edges != null } })
+      return ok({
+        id,
+        url: urlFor(id),
+        updated: { title: title != null, nodes: nodes != null, edges: edges != null },
+        ...(row.stale ? { edited_in_place: true, reason: reason.trim() } : {}),
+      })
     } catch (e) { return fail(`update failed: ${e.message}`) }
   },
 )
 
-// ── Delete ──────────────────────────────────────────────────────────────────
+// ── Delete / restore ────────────────────────────────────────────────────────
+// Delete is SOFT: the row is stamped deleted_at and drops out of every list,
+// gallery and shared link, but it is kept. Cleaning up a batch of duplicates is
+// therefore always reversible, which is the whole point of doing it in bulk.
 server.registerTool(
   'delete_system_design',
   {
     title: 'Delete system design',
-    description: 'Permanently delete a diagram by id.',
-    inputSchema: { id: z.string().describe('The diagram id to delete') },
+    description:
+      'Move a diagram to trash by id. This is a soft delete - it disappears from the gallery, the demo list and any ' +
+      'shared link, but the row is kept and restore_system_design can bring it back. Safe for cleaning up duplicates.',
+    inputSchema: {
+      id: z.string().describe('The diagram id to move to trash'),
+      reason: z.string().optional().describe('Why it is being removed, e.g. "duplicate of v2.2". Recorded on the row.'),
+    },
+  },
+  async ({ id, reason }) => {
+    try {
+      const { rows } = await db.query(
+        `UPDATE system_designs SET deleted_at = now(), update_reason = COALESCE($3, update_reason)
+         WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL RETURNING id, title`,
+        [id, owner(), reason?.trim() ?? null],
+      )
+      if (!rows.length) return fail(`No owned, un-trashed diagram with id ${id}`)
+      return ok({ trashed: id, title: rows[0].title, recoverable: true, restore_with: 'restore_system_design' })
+    } catch (e) { return fail(`delete failed: ${e.message}`) }
+  },
+)
+
+server.registerTool(
+  'restore_system_design',
+  {
+    title: 'Restore system design',
+    description: 'Bring a trashed diagram back by id. Call list_trash to see what is in there.',
+    inputSchema: { id: z.string().describe('The diagram id to restore from trash') },
   },
   async ({ id }) => {
     try {
-      const { rowCount } = await db.query('DELETE FROM system_designs WHERE id = $1 AND user_id = $2', [id, owner()])
-      if (!rowCount) return fail(`No owned diagram with id ${id}`)
-      return ok({ deleted: id })
-    } catch (e) { return fail(`delete failed: ${e.message}`) }
+      const { rows } = await db.query(
+        'UPDATE system_designs SET deleted_at = NULL WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL RETURNING id, title',
+        [id, owner()],
+      )
+      if (!rows.length) return fail(`No trashed diagram with id ${id}`)
+      return ok({ restored: id, title: rows[0].title, url: urlFor(id) })
+    } catch (e) { return fail(`restore failed: ${e.message}`) }
+  },
+)
+
+server.registerTool(
+  'purge_system_design',
+  {
+    title: 'Purge system design (permanent)',
+    description:
+      'PERMANENTLY delete a diagram that is already in trash. This cannot be undone. A live diagram must be moved to ' +
+      'trash with delete_system_design first, so destroying anything always takes two deliberate steps.',
+    inputSchema: { id: z.string().describe('The id of a TRASHED diagram to destroy permanently') },
+  },
+  async ({ id }) => {
+    try {
+      const { rowCount } = await db.query(
+        'DELETE FROM system_designs WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL',
+        [id, owner()],
+      )
+      if (!rowCount) return fail(`No TRASHED diagram with id ${id} - call delete_system_design first, or list_trash to check`)
+      return ok({ purged: id, permanent: true })
+    } catch (e) { return fail(`purge failed: ${e.message}`) }
+  },
+)
+
+server.registerTool(
+  'list_trash',
+  {
+    title: 'List trashed system designs',
+    description: "Everything the owner has moved to trash, newest first, with the id restore_system_design needs.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const { rows } = await db.query(
+        `SELECT id, title, slug, deleted_at, update_reason,
+                jsonb_array_length(nodes) AS nodes, jsonb_array_length(edges) AS edges
+         FROM system_designs WHERE user_id = $1 AND deleted_at IS NOT NULL
+         ORDER BY deleted_at DESC LIMIT 200`,
+        [owner()],
+      )
+      return ok({ count: rows.length, trashed: rows })
+    } catch (e) { return fail(`list_trash failed: ${e.message}`) }
   },
 )
 
