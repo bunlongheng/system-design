@@ -195,12 +195,70 @@ function roundedPath(pts, r = 16) {
 // Edge whose line is a gradient from the SOURCE node's color to the TARGET
 // node's color, connected at the nearest borders. The label badge sits at the
 // midpoint; the Steps chip is a chip inside that badge.
+// Measuring a path needs a real SVGPathElement, and it has to be IN the document
+// - a detached one reports getTotalLength() as 0 in Chrome, which silently made
+// every drag a no-op. One hidden element is reused rather than allocating per
+// drag frame.
+let measurePath = null
+function pathEl(d) {
+  if (!measurePath) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('aria-hidden', 'true')
+    svg.setAttribute('width', '0')
+    svg.setAttribute('height', '0')
+    svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none'
+    measurePath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    svg.appendChild(measurePath)
+    document.body.appendChild(svg)
+  }
+  measurePath.setAttribute('d', d)
+  return measurePath
+}
+
+// The point a fraction t along the path.
+function pointOnPath(d, t) {
+  try {
+    const el = pathEl(d)
+    const len = el.getTotalLength()
+    if (!len) return null
+    const p = el.getPointAtLength(Math.min(1, Math.max(0, t)) * len)
+    return { x: p.x, y: p.y }
+  } catch { return null }
+}
+
+// A badge is kept off the very ends of its edge: t=0 and t=1 sit under the two
+// service boxes, where the badge is hidden and unclickable.
+const T_MIN = 0.12, T_MAX = 0.88
+
+// The fraction along the path closest to (x, y). Coarse sweep, then a local
+// refinement - enough for a badge, and cheap enough to run per drag frame.
+function nearestTOnPath(d, x, y) {
+  try {
+    const el = pathEl(d)
+    const len = el.getTotalLength()
+    if (!len) return null
+    const d2 = tt => { const p = el.getPointAtLength(tt * len); return (p.x - x) ** 2 + (p.y - y) ** 2 }
+    let best = 0, bestD = Infinity
+    const N = 80
+    for (let i = 0; i <= N; i++) { const tt = i / N, dd = d2(tt); if (dd < bestD) { bestD = dd; best = tt } }
+    let step = 1 / N
+    for (let pass = 0; pass < 4; pass++) {
+      step /= 4
+      for (const tt of [best - step, best + step]) {
+        const c = Math.min(1, Math.max(0, tt)), dd = d2(c)
+        if (dd < bestD) { bestD = dd; best = c }
+      }
+    }
+    return Math.min(T_MAX, Math.max(T_MIN, best))
+  } catch { return null }
+}
+
 export function GradientEdge({
   id, source, target, sourceX, sourceY, targetX, targetY, markerEnd, data, label,
 }) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
-  const { getNodes, getEdges, getZoom } = useReactFlow()
+  const { getNodes, getEdges, screenToFlowPosition } = useReactFlow()
   // Stem direction needs the OTHER nodes' geometry, and useInternalNode only
   // covers this edge's two ends, so measured sizes come off the node list.
   const internalById = id => {
@@ -351,12 +409,16 @@ export function GradientEdge({
   const hasStep = data?.step != null
 
   // Auto-placement gets a badge off its own node, but it cannot know about the
-  // OTHER badges, so on a dense diagram two can still land on each other. A
-  // saved nudge wins over the computed spot; double-click hands it back.
-  const saved = data?.labelOffset
-  const [drag, setDrag] = useState(null)
-  const dx = drag ? drag.dx : (saved?.dx ?? 0)
-  const dy = drag ? drag.dy : (saved?.dy ?? 0)
+  // OTHER badges, so on a dense diagram two can still land on each other. The
+  // fix is to SLIDE a badge along its own edge - never to park it out on open
+  // canvas, where it stops being obvious which edge it belongs to.
+  //
+  // So the saved position is `labelT`, a 0..1 distance along the edge path, not
+  // a free dx/dy. It also survives the nodes moving: the path changes, the
+  // fraction along it does not.
+  const savedT = typeof data?.labelT === 'number' ? data.labelT : null
+  const [dragT, setDragT] = useState(null)
+  const t = dragT ?? savedT
   const movable = typeof data?.onLabelMove === 'function'
 
   const startDrag = e => {
@@ -364,23 +426,28 @@ export function GradientEdge({
     // The canvas would otherwise pan, and the edge would take the click.
     e.stopPropagation()
     e.preventDefault()
-    const x0 = e.clientX, y0 = e.clientY
-    const base = { dx: saved?.dx ?? 0, dy: saved?.dy ?? 0 }
-    // Divide by zoom so the badge tracks the cursor 1:1 at any zoom level.
-    const z = getZoom() || 1
-    const at = ev => ({ dx: base.dx + (ev.clientX - x0) / z, dy: base.dy + (ev.clientY - y0) / z })
-    const move = ev => setDrag(at(ev))
-    const up = ev => {
+    let last = t
+    const move = ev => {
+      const f = screenToFlowPosition({ x: ev.clientX, y: ev.clientY })
+      last = nearestTOnPath(path, f.x, f.y)
+      setDragT(last)
+    }
+    const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
-      const final = at(ev)
-      setDrag(null)
-      // Only persist a real move - a plain click should not dirty the diagram.
-      if (Math.abs(final.dx - base.dx) > 1 || Math.abs(final.dy - base.dy) > 1) data.onLabelMove(id, final)
+      setDragT(null)
+      // A plain click should not dirty the diagram.
+      if (last != null && Math.abs(last - (savedT ?? -1)) > 0.001) data.onLabelMove(id, last)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
   }
+
+  // Where the badge actually sits: on the path when it has been placed, else the
+  // computed spot with its node-avoidance nudge.
+  const onPath = t == null ? null : pointOnPath(path, t)
+  const bx = onPath ? onPath.x : labelX
+  const by = onPath ? onPath.y : labelY
 
   return (
     <>
@@ -394,12 +461,12 @@ export function GradientEdge({
       {(label || hasStep) && (
         <EdgeLabelRenderer>
           <div
-            className={`sd-edge-badge nodrag nopan${movable ? ' is-movable' : ''}${drag ? ' is-dragging' : ''}`}
+            className={`sd-edge-badge nodrag nopan${movable ? ' is-movable' : ''}${dragT != null ? ' is-dragging' : ''}`}
             onPointerDown={startDrag}
             onDoubleClick={movable ? e => { e.stopPropagation(); data.onLabelMove(id, null) } : undefined}
-            title={movable ? 'Drag to reposition; double-click to reset' : undefined}
+            title={movable ? 'Drag along the edge to reposition; double-click to reset' : undefined}
             style={{
-              transform: `translate(-50%, -50%) translate(${labelX + dx}px, ${labelY + dy}px)`,
+              transform: `translate(-50%, -50%) translate(${bx}px, ${by}px)`,
               '--c1': c1, '--c2': c2,
             }}
           >
