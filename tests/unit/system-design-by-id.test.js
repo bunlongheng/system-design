@@ -134,6 +134,42 @@ describe("/api/system-designs/:id", () => {
     expect(res.body.view_state).toEqual({ panels: ["steps"], badge: null });
   });
 
+  // A layout save must move nodes and nothing else. Replacing the array with the
+  // client's copy let a tab left open across a change write its stale nodes back
+  // on the next drag - a low-res logo that had just been backfilled away came
+  // back seven minutes later.
+  it("PATCH nodes takes ONLY position and keeps stored branding", async () => {
+    const stored = [
+      { id: "integry", label: "Integry", color: "#ef4444", sub: "DECOMMISSION", position: { x: 0, y: 0 } },
+    ];
+    query.mockResolvedValueOnce({ rows: [{ nodes: stored }] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
+    // A stale client sends the OLD inline icon back alongside the new position.
+    r.body = { nodes: [{ id: "integry", position: { x: 500, y: 250 }, icon: "data:image/png;base64,STALE", color: "#000000" }] };
+    await systemDesignById(r, res);
+
+    const written = JSON.parse(query.mock.calls[1][1][0]);
+    expect(written[0].position).toEqual({ x: 500, y: 250 }); // the move lands
+    expect(written[0].icon).toBeUndefined();                 // the stale icon does not
+    expect(written[0].color).toBe("#ef4444");                // stored branding wins
+    expect(written[0].sub).toBe("DECOMMISSION");
+  });
+
+  it("PATCH nodes still accepts a genuinely new node whole", async () => {
+    query.mockResolvedValueOnce({ rows: [{ nodes: [{ id: "a", position: { x: 0, y: 0 } }] }] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
+    r.body = { nodes: [{ id: "brand-new", position: { x: 9, y: 9 }, icon: "/brand/x.png", label: "New" }] };
+    await systemDesignById(r, res);
+    const written = JSON.parse(query.mock.calls[1][1][0]);
+    const added = written.find((n) => n.id === "brand-new");
+    expect(added).toEqual({ id: "brand-new", position: { x: 9, y: 9 }, icon: "/brand/x.png", label: "New" });
+    expect(written.find((n) => n.id === "a")).toBeTruthy(); // untouched node survives
+  });
+
   // Dragged step-badge positions. Merged BY EDGE ID into the stored edges, so a
   // stale or malicious client cannot drop labels or rewrite endpoints.
   it("PATCH edges merges label offsets and never touches label or endpoints", async () => {
