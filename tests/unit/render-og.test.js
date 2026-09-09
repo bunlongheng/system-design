@@ -34,12 +34,24 @@ describe("renderOgSvg", () => {
     for (const label of ["Easy", "Medium", "Hard", "Expert"]) expect(svg).not.toContain(label);
   });
 
-  it("renders a 1200x630 card carrying the title and the pattern line", () => {
+  it("gives the diagram the frame the title used to take", () => {
+    const svg = renderOgSvg(DESIGN);
+    // The white preview card starts near the top now, not two thirds down.
+    const y = Number(/<rect x="52" y="(\d+)"[^>]*rx="16"/.exec(svg)[1]);
+    expect(y).toBeLessThan(160);
+  });
+
+  it("renders a 1200x630 card", () => {
     const svg = renderOgSvg(DESIGN);
     expect(svg).toContain(`width="${OG_W}" height="${OG_H}"`);
-    expect(svg).toContain("Email Newsletter - 500M Subscribers");
-    expect(svg).toContain("Bulk fan-out");
-    expect(svg).toContain("SYSTEM DESIGN");
+  });
+
+  // Every platform prints og:title and og:description as its own chrome directly
+  // beneath the image. Drawing them here too showed the title twice.
+  it("does NOT draw the title or the description - the platform prints those", () => {
+    const svg = renderOgSvg(DESIGN);
+    expect(svg).not.toContain("Email Newsletter - 500M Subscribers");
+    expect(svg).not.toContain("Bulk fan-out");
   });
 
   it("shows the node and edge counts plus a difficulty chip", () => {
@@ -69,10 +81,9 @@ describe("renderOgSvg", () => {
     expect(withBrand.match(/<image /g).length).toBeGreaterThan(without.match(/<image /g).length);
   });
 
-  it("escapes markup in a title instead of emitting it", () => {
+  it("never emits raw markup from a title, even though it is not drawn", () => {
     const svg = renderOgSvg({ ...DESIGN, title: '<script>x</script> & "co"' });
     expect(svg).not.toContain("<script>");
-    expect(svg).toContain("&lt;script&gt;");
   });
 
   it("survives a design with no nodes rather than throwing", () => {
