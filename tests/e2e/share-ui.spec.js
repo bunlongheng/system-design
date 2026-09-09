@@ -176,3 +176,54 @@ test("a slug for a PRIVATE design stays hidden from a stranger", async ({ baseUR
     await api.dispose();
   }
 });
+
+// Auto-placement keeps a step badge off its own node, but it cannot see the OTHER
+// badges - on a dense diagram two still collide. The owner drags one clear, and
+// that correction has to survive a reload or it is worthless.
+test("a step badge can be dragged, persists, and double-click resets it", async ({ page, context, baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: { ...DESIGN, title: "E2E Badge Drag" },
+  });
+  const id = (await create.json()).url.split("/?id=")[1];
+
+  try {
+    await context.addCookies([{ name: "sd_session", value: OWNER_COOKIE.split("=")[1], url: baseURL }]);
+    const open = async () => {
+      await page.goto(`/?id=${id}`);
+      await page.waitForSelector(".react-flow__node", { timeout: 15000 });
+      await page.waitForSelector(".sd-edge-badge.is-movable", { timeout: 15000 });
+    };
+    const badge = () => page.locator(".sd-edge-badge").first();
+    const y = async () => Math.round((await badge().boundingBox()).y);
+
+    await open();
+    const before = await y();
+
+    const box = await badge().boundingBox();
+    const saved = page.waitForResponse((r) => r.request().method() === "PATCH" && r.status() === 200);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 70, { steps: 12 });
+    await page.mouse.up();
+    await expect.poll(y).toBeLessThan(before - 50);
+    await saved; // the move is only real once it is stored
+    const moved = await y();
+
+    // Survives a reload - the whole point.
+    await open();
+    expect(Math.abs((await y()) - moved)).toBeLessThan(10);
+
+    // Double-click hands it back to the computed spot.
+    const reset = page.waitForResponse((r) => r.request().method() === "PATCH" && r.status() === 200);
+    await badge().dblclick();
+    await reset;
+    await open();
+    expect(Math.abs((await y()) - before)).toBeLessThan(10);
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+    await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } });
+    await api.dispose();
+  }
+});

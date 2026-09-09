@@ -599,6 +599,12 @@ export function DetailView({
           font-size: 8.5px; font-weight: 700; line-height: 1.35;
           letter-spacing: 0.01em; white-space: nowrap; pointer-events: none;
         }
+        /* Only the owner's badges take pointer events - a read-only viewer must
+           not be able to grab one, and leaving them inert keeps clicks falling
+           through to the canvas as before. */
+        .sd-edge-badge.is-movable { pointer-events: auto; cursor: grab; }
+        .sd-edge-badge.is-movable:hover { filter: brightness(1.08); }
+        .sd-edge-badge.is-dragging { cursor: grabbing; z-index: 20; filter: brightness(1.12); }
         /* 1) Silver fill + gradient border, dark text (default) */
         .sd-badge-silver .sd-edge-badge {
           color: #1e2733; border: 1.5px solid transparent;

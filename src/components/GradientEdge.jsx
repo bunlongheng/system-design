@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useInternalNode, useReactFlow, Position } from '@xyflow/react'
 
 // ─── Edge geometry ────────────────────────────────────────────────────────────
@@ -199,7 +200,7 @@ export function GradientEdge({
 }) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
-  const { getNodes, getEdges } = useReactFlow()
+  const { getNodes, getEdges, getZoom } = useReactFlow()
   // Stem direction needs the OTHER nodes' geometry, and useInternalNode only
   // covers this edge's two ends, so measured sizes come off the node list.
   const internalById = id => {
@@ -349,6 +350,38 @@ export function GradientEdge({
   const gid = `grad-${id}`
   const hasStep = data?.step != null
 
+  // Auto-placement gets a badge off its own node, but it cannot know about the
+  // OTHER badges, so on a dense diagram two can still land on each other. A
+  // saved nudge wins over the computed spot; double-click hands it back.
+  const saved = data?.labelOffset
+  const [drag, setDrag] = useState(null)
+  const dx = drag ? drag.dx : (saved?.dx ?? 0)
+  const dy = drag ? drag.dy : (saved?.dy ?? 0)
+  const movable = typeof data?.onLabelMove === 'function'
+
+  const startDrag = e => {
+    if (!movable || e.button !== 0) return
+    // The canvas would otherwise pan, and the edge would take the click.
+    e.stopPropagation()
+    e.preventDefault()
+    const x0 = e.clientX, y0 = e.clientY
+    const base = { dx: saved?.dx ?? 0, dy: saved?.dy ?? 0 }
+    // Divide by zoom so the badge tracks the cursor 1:1 at any zoom level.
+    const z = getZoom() || 1
+    const at = ev => ({ dx: base.dx + (ev.clientX - x0) / z, dy: base.dy + (ev.clientY - y0) / z })
+    const move = ev => setDrag(at(ev))
+    const up = ev => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      const final = at(ev)
+      setDrag(null)
+      // Only persist a real move - a plain click should not dirty the diagram.
+      if (Math.abs(final.dx - base.dx) > 1 || Math.abs(final.dy - base.dy) > 1) data.onLabelMove(id, final)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
   return (
     <>
       <defs>
@@ -361,9 +394,12 @@ export function GradientEdge({
       {(label || hasStep) && (
         <EdgeLabelRenderer>
           <div
-            className="sd-edge-badge"
+            className={`sd-edge-badge nodrag nopan${movable ? ' is-movable' : ''}${drag ? ' is-dragging' : ''}`}
+            onPointerDown={startDrag}
+            onDoubleClick={movable ? e => { e.stopPropagation(); data.onLabelMove(id, null) } : undefined}
+            title={movable ? 'Drag to reposition; double-click to reset' : undefined}
             style={{
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              transform: `translate(-50%, -50%) translate(${labelX + dx}px, ${labelY + dy}px)`,
               '--c1': c1, '--c2': c2,
             }}
           >

@@ -134,6 +134,39 @@ describe("/api/system-designs/:id", () => {
     expect(res.body.view_state).toEqual({ panels: ["steps"], badge: null });
   });
 
+  // Dragged step-badge positions. Merged BY EDGE ID into the stored edges, so a
+  // stale or malicious client cannot drop labels or rewrite endpoints.
+  it("PATCH edges merges label offsets and never touches label or endpoints", async () => {
+    const stored = [
+      { id: "e1", source: "a", target: "b", label: "first" },
+      { id: "e2", source: "b", target: "c", label: "second", labelOffset: { dx: 5, dy: 5 } },
+    ];
+    query.mockResolvedValueOnce({ rows: [{ edges: stored }] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
+    // e1 gets an offset; e2's is reset; the caller sends no label or endpoints.
+    r.body = { edges: [{ id: "e1", labelOffset: { dx: 12.6, dy: -40.2 } }, { id: "e2" }] };
+    await systemDesignById(r, res);
+    expect(res.statusCode).toBe(200);
+
+    const written = JSON.parse(query.mock.calls[1][1][0]);
+    expect(written[0]).toEqual({ id: "e1", source: "a", target: "b", label: "first", labelOffset: { dx: 13, dy: -40 } });
+    // Reset drops the offset entirely rather than storing a zero.
+    expect(written[1]).toEqual({ id: "e2", source: "b", target: "c", label: "second" });
+    expect(res.body.moved).toBe(1);
+  });
+
+  it("PATCH edges ignores a non-finite offset instead of storing NaN", async () => {
+    query.mockResolvedValueOnce({ rows: [{ edges: [{ id: "e1", source: "a", target: "b" }] }] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
+    r.body = { edges: [{ id: "e1", labelOffset: { dx: "x", dy: null } }] };
+    await systemDesignById(r, res);
+    expect(JSON.parse(query.mock.calls[1][1][0])[0].labelOffset).toBeUndefined();
+  });
+
   it("DELETE is a SOFT delete: stamps deleted_at and says it is recoverable", async () => {
     query.mockResolvedValueOnce({ rowCount: 1 });
     const res = mockRes();
