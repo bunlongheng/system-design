@@ -97,6 +97,28 @@ describe("/api/system-designs/:id", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it("PATCH view_state keeps the whole set of open panels, not one winner", async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const cookie = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
+    const r = req("PATCH", ID, undefined, cookie);
+    r.body = { view_state: { panels: ["details", "steps"], badge: "silver" } };
+    await systemDesignById(r, res);
+    expect(res.statusCode).toBe(200);
+    // Order is normalised to the canonical list, and both survive.
+    expect(res.body.view_state).toEqual({ panels: ["steps", "details"], badge: "silver" });
+  });
+
+  it("PATCH view_state drops anything not a real panel or badge", async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const cookie = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
+    const r = req("PATCH", ID, undefined, cookie);
+    r.body = { view_state: { panels: ["steps", "evil", 1], badge: "neon" } };
+    await systemDesignById(r, res);
+    expect(res.body.view_state).toEqual({ panels: ["steps"], badge: null });
+  });
+
   it("DELETE is a SOFT delete: stamps deleted_at and says it is recoverable", async () => {
     query.mockResolvedValueOnce({ rowCount: 1 });
     const res = mockRes();
