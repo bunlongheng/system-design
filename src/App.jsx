@@ -580,15 +580,19 @@ export default function App() {
     const name = new URLSearchParams(window.location.search).get('name')
     if (!name) return
     setLoadingId(true)
-    const lists = isDemo ? ['/api/system-designs/public'] : ['/api/system-designs', '/api/system-designs/public']
-    Promise.all(lists.map(u => fetch(u).then(r => (r.ok ? r.json() : [])).catch(() => [])))
-      .then(all => {
-        const row = all.flat().find(r => r.slug === name)
-        if (!row) { setLoadError(true); setLoadingId(false); return }
+    // One direct lookup - the API resolves a slug the same way it resolves a
+    // uuid, with the same visibility rule. This used to scan the two list
+    // endpoints instead, which silently could not see a PUBLISHED non-demo
+    // design: the owner list returns only private rows and the public list only
+    // the curated demos, so sharing a diagram broke its own link.
+    fetch(`/api/system-designs/${encodeURIComponent(name)}`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(row => {
         openDiagram({ id: row.id, slug: row.slug, view_state: row.view_state || null, is_public: row.is_public, title: row.title, description: row.description || '', pattern: row.pattern || '', difficulty: row.difficulty ?? null, data: { nodes: row.nodes, edges: row.edges }, updatedAt: row.created_at, tags: row.tags || [] })
         setLoadingId(false)
       })
-  }, [isDemo])
+      .catch(() => { setLoadError(true); setLoadingId(false) })
+  }, [])
 
   // Save the open panel + badge style back to the row, debounced, owner only.
   // Only ONE panel is ever open, so this collapses to a single value rather than

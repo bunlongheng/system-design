@@ -81,17 +81,32 @@ describe("/api/system-designs/:id", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("GET a non-uuid id returns 400 and never queries the db", async () => {
+  // A non-uuid GET is a SLUG lookup now - that is how /?name=my-design resolves.
+  // Resolving it by scanning the list endpoints instead was the bug that made a
+  // published non-demo design 404 on its own share link.
+  it("GET a slug looks the design up by slug, not by id", async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID, slug: "my-design", is_public: true }] });
     const res = mockRes();
-    await systemDesignById(req("GET", "abc"), res);
+    await systemDesignById(req("GET", "my-design"), res);
+    expect(res.statusCode).toBe(200);
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toMatch(/WHERE slug = \$1/);
+    expect(params).toEqual(["my-design"]);
+  });
+
+  it("GET a malformed slug returns 400 and never queries the db", async () => {
+    const res = mockRes();
+    await systemDesignById(req("GET", "not a slug!"), res);
     expect(res.statusCode).toBe(400);
     expect(res.body).toEqual({ error: "Invalid id" });
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("DELETE a non-uuid id returns 400 and never queries the db", async () => {
+  // Mutations stay uuid-only even for a well-formed slug: a slug changes meaning
+  // when a design is renamed, so it is not a safe thing to delete or overwrite by.
+  it("DELETE by slug returns 400 and never queries the db", async () => {
     const res = mockRes();
-    await systemDesignById(req("DELETE", "abc", `Bearer ${SECRET}`), res);
+    await systemDesignById(req("DELETE", "my-design", `Bearer ${SECRET}`), res);
     expect(res.statusCode).toBe(400);
     expect(res.body).toEqual({ error: "Invalid id" });
     expect(query).not.toHaveBeenCalled();
