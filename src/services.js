@@ -122,7 +122,7 @@ export const SERVICES = {
   integry:      { label: 'Integry',        sub: 'Embedded Integrations',  icon: '/brand/integry.svg',       color: '#2E5E4E' },
   thryv:        { label: 'Thryv',          sub: 'Marketing Center',       icon: '/brand/thryv.png',         color: '#EF7622' },
   auth0:        { label: 'Auth0',          sub: 'Identity',               icon: '/brand/auth0.png',         color: '#EB5424' },
-  thryvbc:      { label: 'Thryv',          sub: 'Business Center',        icon: '/brand/thryv-bc.svg',      color: '#1A1A1A' },
+  thryvbc:      { label: 'Thryv',          sub: 'Business Center',        icon: '/brand/thryv.png',         color: '#1A1A1A' },
   gcp:          { label: 'Google Cloud',   sub: 'GCP',                    icon: '/brand/gcp.svg',           color: '#4285F4' },
   alloydb:      { label: 'AlloyDB AI',     sub: 'Managed Postgres',       icon: '/brand/alloydb.svg',       color: '#4285F4' },
 }

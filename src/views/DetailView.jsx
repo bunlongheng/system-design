@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ReactFlow, Background } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import diagramData from '../data/diagram.json'
@@ -37,6 +37,24 @@ export function DetailView({
 }) {
   const brand = brandFor(activeDiagram?.title)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Fit is an ACTION, but it reads as a state on touch (the inline hover
+  // background never clears without a mouseleave). So make the state real:
+  // lit only while the canvas actually IS the fitted view, cleared the moment
+  // you pan or zoom away from it.
+  const [fitted, setFitted] = useState(true)
+  const fitNow = () => {
+    rfInstanceRef.current?.fitView({ padding: 0.12, duration: 400 })
+    setFitted(true)
+  }
+
+  // Opening or closing a side panel changes how much canvas the diagram has, so
+  // whatever was fitted a moment ago no longer is. Re-fit on every toggle, in
+  // both directions, after a tick so the panel's width is already applied.
+  useEffect(() => {
+    const t = setTimeout(fitNow, 60)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDetailsPanel, showSteps, showSharePanel, showDetailCode])
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       <Toast message={toast.message} visible={toast.visible} />
@@ -116,15 +134,16 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Fit button */}
-          <button className="sd-hide-mobile" onClick={() => rfInstanceRef.current?.fitView({ padding: 0.12, duration: 400 })} style={{
+          <button className={`sd-hide-mobile${fitted ? ' is-on' : ''}`} onClick={fitNow}
+            title={fitted ? 'Already fitted to the screen' : 'Fit the diagram to the screen'} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
-            background: 'transparent', color: '#64748b',
-            cursor: 'pointer', fontSize: 13, fontWeight: 400,
+            background: fitted ? '#f1f5f9' : 'transparent', color: fitted ? '#1e293b' : '#64748b',
+            cursor: 'pointer', fontSize: 13, fontWeight: fitted ? 600 : 400,
             transition: 'all 0.1s', fontFamily: 'inherit',
           }}
             onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            onMouseLeave={e => (e.currentTarget.style.background = fitted ? '#f1f5f9' : 'transparent')}
           >
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
@@ -179,7 +198,7 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Details (goal + steps) panel toggle */}
-          <button className="sd-hide-mobile" onClick={() => setShowDetailsPanel(v => !v)} style={{
+          <button className={`sd-hide-mobile${showDetailsPanel ? ' is-on' : ''}`} onClick={() => setShowDetailsPanel(v => !v)} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: showDetailsPanel ? '#f1f5f9' : 'transparent',
@@ -199,7 +218,7 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Steps toggle */}
-          <button onClick={() => setShowSteps(v => !v)} style={{
+          <button className={showSteps ? "is-on" : ""} onClick={() => setShowSteps(v => !v)} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: showSteps ? '#f1f5f9' : 'transparent',
@@ -243,7 +262,7 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Share toggle */}
-          <button onClick={() => setShowSharePanel(v => !v)} style={{
+          <button className={showSharePanel ? "is-on" : ""} onClick={() => setShowSharePanel(v => !v)} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: showSharePanel ? '#f1f5f9' : 'transparent',
@@ -333,7 +352,10 @@ export function DetailView({
             /* Cmd/Ctrl is reserved for snap-align while dragging, so additive
                multi-select moves to Shift (box-select already uses Shift). */
             multiSelectionKeyCode="Shift"
-            onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => inst.fitView({ padding: 0.15 }), 0) }}
+            onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => { inst.fitView({ padding: 0.15 }); setFitted(true) }, 0) }}
+            /* event is null when react-flow moves the viewport itself (fitView),
+               and set when a finger or wheel did it - only the latter un-fits. */
+            onMove={(event) => { if (event) setFitted(false) }}
             onMoveEnd={(_, viewport) => flashZoomHud(viewport.zoom)}
             fitView fitViewOptions={{ padding: 0.15 }}
             nodesDraggable nodesConnectable={false} elementsSelectable
@@ -541,6 +563,15 @@ export function DetailView({
       />
 
       <style>{`
+        /* Touch devices fire mouseenter on tap but NEVER mouseleave, so every
+           inline hover background in this toolbar stuck ON after one tap - Fit
+           looked permanently active on an iPad. Where there is no real hover,
+           ignore the inline background entirely and let the genuinely-toggled
+           buttons say so with .is-on. */
+        @media (hover: none) {
+          .sd-detail-header button { background: transparent !important; }
+          .sd-detail-header button.is-on { background: #f1f5f9 !important; }
+        }
         /* Layout save indicator next to the title. */
         @keyframes sd-save-rot { to { transform: rotate(360deg); } }
         .sd-save-spin { animation: sd-save-rot 0.7s linear infinite; }

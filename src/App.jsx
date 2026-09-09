@@ -223,6 +223,8 @@ export default function App() {
         const mapped = rows.map(r => ({
           id: r.id,
           slug: r.slug || '',
+          view_state: r.view_state || null,
+          is_public: r.is_public,
           title: r.title,
           description: r.description || '',
           pattern: r.pattern || '',
@@ -324,6 +326,18 @@ export default function App() {
   function openDiagram(d) {
     setActiveDiagram(d)
     setHistory({ past: [], future: [] })
+    // Reopen where you left off: the panel that was open and the badge style
+    // you picked travel with the row, so a diagram never resets to a bare
+    // canvas. Anything unsaved falls back to the defaults.
+    const v = d.view_state || {}
+    // `panels` is the set that was open. Rows saved before this shape used a
+    // single `panel`, so fold that in rather than dropping their state.
+    const open = Array.isArray(v.panels) ? v.panels : v.panel ? [v.panel] : []
+    setShowSteps(open.includes('steps'))
+    setShowDetailsPanel(open.includes('details'))
+    setShowSharePanel(open.includes('share'))
+    setShowDetailCode(open.includes('code'))
+    if (['dark', 'silver', 'color', 'plain'].includes(v.badge)) setBadgeMode(v.badge)
     const raw = d.data.nodes || []
     // Use the owner's saved layout when every node has a stored position;
     // otherwise auto-layout with dagre so nothing overlaps.
@@ -548,7 +562,7 @@ export default function App() {
     fetch(`/api/system-designs/${id}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(d => {
-        openDiagram({ id: d.id, slug: d.slug || '', title: d.title, description: d.description || '', pattern: d.pattern || '', data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] })
+        openDiagram({ id: d.id, slug: d.slug || '', view_state: d.view_state || null, is_public: d.is_public, title: d.title, description: d.description || '', pattern: d.pattern || '', data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] })
         setLoadingId(false)
       })
       .catch(() => {
@@ -571,10 +585,38 @@ export default function App() {
       .then(all => {
         const row = all.flat().find(r => r.slug === name)
         if (!row) { setLoadError(true); setLoadingId(false); return }
-        openDiagram({ id: row.id, slug: row.slug, title: row.title, description: row.description || '', pattern: row.pattern || '', difficulty: row.difficulty ?? null, data: { nodes: row.nodes, edges: row.edges }, updatedAt: row.created_at, tags: row.tags || [] })
+        openDiagram({ id: row.id, slug: row.slug, view_state: row.view_state || null, is_public: row.is_public, title: row.title, description: row.description || '', pattern: row.pattern || '', difficulty: row.difficulty ?? null, data: { nodes: row.nodes, edges: row.edges }, updatedAt: row.created_at, tags: row.tags || [] })
         setLoadingId(false)
       })
   }, [isDemo])
+
+  // Save the open panel + badge style back to the row, debounced, owner only.
+  // Only ONE panel is ever open, so this collapses to a single value rather than
+  // four booleans - a shape the API can validate.
+  const viewSaveTimer = useRef(null)
+  const openPanels = [
+    showSteps && 'steps', showDetailsPanel && 'details',
+    showSharePanel && 'share', showDetailCode && 'code',
+  ].filter(Boolean)
+  const panelKey = openPanels.join(',')
+  useEffect(() => {
+    if (view !== 'detail' || !canAI || !activeDiagram?.id) return
+    const prev = activeDiagram.view_state || {}
+    const prevKey = (Array.isArray(prev.panels) ? prev.panels : prev.panel ? [prev.panel] : []).join(',')
+    if (prevKey === panelKey && prev.badge === badgeMode) return
+    clearTimeout(viewSaveTimer.current)
+    viewSaveTimer.current = setTimeout(() => {
+      const view_state = { panels: panelKey ? panelKey.split(',') : [], badge: badgeMode }
+      fetch(`/api/system-designs/${activeDiagram.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view_state }),
+      })
+        .then(r => { if (r.ok) setActiveDiagram(a => (a ? { ...a, view_state } : a)) })
+        .catch(() => {})
+    }, 600)
+    return () => clearTimeout(viewSaveTimer.current)
+  }, [view, canAI, activeDiagram, panelKey, badgeMode])
 
   function backToGallery() {
     setLoadError(false)
@@ -737,7 +779,27 @@ export default function App() {
     a.download = exportFilename('txt'); a.click()
   }
 
-  function copyLink() {
+  // Sharing a PRIVATE diagram hands someone a 404 and previews as the generic
+  // site card, because the share page and the OG renderer both refuse unlisted
+  // designs. So sharing publishes first: one deliberate act, and the recipient
+  // gets a working link with a real card. Mirrors the diagrams app.
+  async function ensureShareable() {
+    if (!canAI || !activeDiagram?.id || activeDiagram.is_public) return
+    try {
+      const r = await fetch(`/api/system-designs/${activeDiagram.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_public: true }),
+      })
+      if (r.ok) {
+        setActiveDiagram(a => (a ? { ...a, is_public: true } : a))
+        showToastMsg('Published - anyone with the link can open it')
+      }
+    } catch { /* sharing the link still works if this fails */ }
+  }
+
+  async function copyLink() {
+    await ensureShareable()
     const url = shareUrl
     navigator.clipboard.writeText(url).then(() => {
       setCopiedLink(true); setTimeout(() => setCopiedLink(false), 1500)
@@ -745,7 +807,8 @@ export default function App() {
     })
   }
 
-  function shareAction() {
+  async function shareAction() {
+    await ensureShareable()
     const url = shareUrl
     if (navigator.share) {
       navigator.share({ title: activeDiagram?.title || 'System Design', url }).catch(() => {})
