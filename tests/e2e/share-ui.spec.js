@@ -69,6 +69,14 @@ test("Share on a private diagram publishes it, previews the card, and hands out 
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(copied).toContain(`?name=${slug}`);
     expect(copied).not.toContain("localhost");
+    // It MUST be the /demo route. Vercel resolves "/" from the filesystem before
+    // rewrites run, so a link off "/" never reaches the share function and
+    // previews as the generic site card.
+    expect(copied).toContain(`/demo?name=${slug}`);
+
+    // And that exact copied URL is the one that serves this design's own tags.
+    const served = await api.get(new URL(copied).pathname + new URL(copied).search);
+    expect(served.headers()["x-sd-share"]).toBe("hit");
 
     // 3. The panel shows the real card, not a broken image.
     const preview = page.locator('img[alt="Share card preview"]');

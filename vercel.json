@@ -3,16 +3,6 @@
   "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node db/migrate.mjs; fi && npm run build",
   "rewrites": [
     {
-      "source": "/",
-      "has": [
-        {
-          "type": "query",
-          "key": "name"
-        }
-      ],
-      "destination": "/api/share"
-    },
-    {
       "source": "/demo",
       "has": [
         {
