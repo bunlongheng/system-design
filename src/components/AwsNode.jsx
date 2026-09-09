@@ -4,6 +4,16 @@ import { findService } from '../services'
 
 // ─── Custom Node ──────────────────────────────────────────────────────────────
 
+// Two lines then an ellipsis. Without this a sentence-long sub simply grew the
+// card downwards once its width was capped.
+const CLAMP_2 = {
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+  overflowWrap: 'anywhere',
+}
+
 export const AwsNode = memo(function AwsNode({ data }) {
   const svc = findService(data)
   const color = svc.color || '#6b7280'
@@ -12,10 +22,12 @@ export const AwsNode = memo(function AwsNode({ data }) {
   return (
     <div style={{
       background: `${color}14`, border: `1px solid ${color}`, borderRadius: 0,
-      // maxWidth so a long sub WRAPS instead of stretching the card. One node
-      // carrying a sentence used to come out several times wider than the rest,
-      // which throws the whole layout's rhythm off.
-      padding: '12px 16px', minWidth: 130, maxWidth: 210,
+      // A node is a fixed-size card, not a text box. A label or sub carrying a
+      // whole sentence used to stretch one card several times wider - and then,
+      // once width was capped, several times TALLER - than its neighbours. Both
+      // are now bounded and clamped, so every card reads the same size and the
+      // full text stays available on hover.
+      padding: '12px 16px', minWidth: 130, maxWidth: 180,
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', gap: 7, position: 'relative',
       boxShadow: '0 1px 3px rgba(0,0,0,0.10)',
@@ -30,9 +42,15 @@ export const AwsNode = memo(function AwsNode({ data }) {
         ? <img src={svc.icon} alt={label} width={48} height={48} style={{ objectFit: 'contain', marginTop: 2 }} />
         : <span style={{ fontSize: 26, fontWeight: 700, color, marginTop: 2, lineHeight: 1 }}>{label[0]?.toUpperCase()}</span>
       }
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', letterSpacing: '-0.1px', lineHeight: 1.3 }}>{label}</div>
-        {svc.sub && <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, fontWeight: 600 }}>{svc.sub}</div>}
+      <div style={{ textAlign: 'center', width: '100%' }}>
+        <div title={label} style={{
+          fontSize: 12, fontWeight: 700, color: '#111827', letterSpacing: '-0.1px', lineHeight: 1.3,
+          ...CLAMP_2,
+        }}>{label}</div>
+        {svc.sub && <div title={svc.sub} style={{
+          fontSize: 10, color: '#6b7280', marginTop: 2, fontWeight: 600, lineHeight: 1.35,
+          ...CLAMP_2,
+        }}>{svc.sub}</div>}
       </div>
     </div>
   )
