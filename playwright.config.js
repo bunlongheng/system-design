@@ -1,6 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
-const PORT = process.env.PORT || "4321";
+// NOT 4321. That is the port `npm run dev` uses, and pointing the suite at it
+// meant every test run tore down a dev server someone was using - repeatedly.
+// The suite gets its own port and its own server, and leaves dev alone.
+const PORT = process.env.PORT || "4399";
 const BASE = `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -17,7 +20,7 @@ export default defineConfig({
     // NOT a dev server: the strict CSP has no 'unsafe-eval', which dev HMR needs,
     // and the local auth bypass is gated OFF under production - so these specs
     // exercise exactly what ships.
-    command: "npm run build && npm run start",
+    command: `npm run build && PORT=${PORT} npm run start`,
     url: `${BASE}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
