@@ -29,7 +29,10 @@ const positionsOf = nds => nds
 // Every edge renders as a gradient (source color -> target color) and is
 // animated with marching motion. Node id === service key, so we can look up
 // each endpoint's brand color directly.
-function buildEdges(rawEdges) {
+// onLabelMove is threaded into every edge's data so a badge can be dragged. It is
+// omitted for the bundled sample and for a read-only viewer, and the edge renders
+// its badge inert in that case.
+function buildEdges(rawEdges, onLabelMove) {
   return rawEdges.map((e, i) => ({
     id: e.id || `e${i}`,
     source: e.source,
@@ -37,7 +40,11 @@ function buildEdges(rawEdges) {
     label: e.label,
     type: 'gradient',
     animated: true,
-    data: { sourceColor: colorOf(e.source), targetColor: colorOf(e.target), step: i + 1 },
+    data: {
+      sourceColor: colorOf(e.source), targetColor: colorOf(e.target), step: i + 1,
+      ...(e.labelOffset ? { labelOffset: e.labelOffset } : {}),
+      ...(onLabelMove ? { onLabelMove } : {}),
+    },
   }))
 }
 
@@ -323,6 +330,47 @@ export default function App() {
     }
   }
 
+  // Drag a step badge to somewhere it does not collide. Auto-placement keeps a
+  // badge off its own node but cannot see the other badges, so on a dense
+  // diagram two can still overlap - this is the manual override. `offset: null`
+  // (double-click) puts it back to the computed spot.
+  const onLabelMove = useCallback((edgeId, offset) => {
+    setEdges(prev => prev.map(e => (e.id === edgeId
+      ? { ...e, data: { ...e.data, labelOffset: offset || undefined } }
+      : e)))
+    setActiveDiagram(a => {
+      if (!a) return a
+      const data = { ...a.data, edges: (a.data.edges || []).map((e, i) => ((e.id || `e${i}`) === edgeId
+        ? { ...e, labelOffset: offset || undefined }
+        : e)) }
+      // Saved on DROP, not debounced. A drop is one discrete action, and a debounce
+      // meant dragging a badge then immediately navigating threw the move away.
+      if (a.id) {
+        const payload = data.edges.map((e, i) => ({
+          id: e.id || `e${i}`, ...(e.labelOffset ? { labelOffset: e.labelOffset } : {}),
+        }))
+        fetch(`/api/system-designs/${a.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ edges: payload }),
+        }).catch(() => {})
+      }
+      return { ...a, data }
+    })
+  }, [])
+
+  // A cold ?name= / ?id= load resolves the design BEFORE /api/auth/me answers, so
+  // canAI was still false when the edges were built and no badge came out
+  // draggable. Re-attach (or strip) the handler whenever ownership settles.
+  useEffect(() => {
+    if (view !== 'detail') return
+    setEdges(prev => prev.map(e => (
+      Boolean(e.data?.onLabelMove) === canAI
+        ? e
+        : { ...e, data: { ...e.data, onLabelMove: canAI ? onLabelMove : undefined } }
+    )))
+  }, [canAI, view, onLabelMove])
+
   function openDiagram(d) {
     setActiveDiagram(d)
     setHistory({ past: [], future: [] })
@@ -345,7 +393,7 @@ export default function App() {
     // Carry any custom brand fields (label/icon/color/sub) into node data so a
     // bring-your-own-icon node renders its own logo, not a catalog lookup.
     const n = raw.map(nd => ({ ...nd, type: 'awsNode', data: { id: nd.id, label: nd.label, icon: nd.icon, color: nd.color, sub: nd.sub }, ...(hasSaved ? { position: nd.position } : {}) }))
-    const e = buildEdges(d.data.edges)
+    const e = buildEdges(d.data.edges, canAI ? onLabelMove : undefined)
     setNodes(hasSaved ? n : layoutElements(n, e, { canvas: canvasSize() }))
     setEdges(e)
     setView('detail')
@@ -569,6 +617,8 @@ export default function App() {
         setLoadError(true)
         setLoadingId(false)
       })
+    // Same: a one-shot load from the URL, not a subscription to openDiagram.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Open a diagram straight from a readable ?name=<slug> URL (the link the
@@ -592,6 +642,9 @@ export default function App() {
         setLoadingId(false)
       })
       .catch(() => { setLoadError(true); setLoadingId(false) })
+    // Resolves the URL once on mount. openDiagram is stable for that purpose and
+    // listing it would re-run the fetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Save the open panel + badge style back to the row, debounced, owner only.
