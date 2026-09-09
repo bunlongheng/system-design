@@ -30,16 +30,67 @@ const fail = msg => ({ isError: true, content: [{ type: 'text', text: msg }] })
 
 // Agents pass nodes as { id, x?, y? }; the app stores { id, position:{x,y} } and
 // auto-layouts on open, so positions are a starting hint, not load-bearing.
+// HARD RULE: a diagram starts on the LEFT and reads left-to-right. Never from the
+// bottom, never right-to-left.
+//
+// This used to be broken here rather than in the canvas. Omitting x/y did not mean
+// "lay it out for me" - it fabricated a 6-column grid BY ARRAY INDEX. Every node
+// then had a position, so the app treated the layout as hand-placed and never ran
+// its own; a start node late in the array simply landed bottom-right.
+//
+// Now: no coordinates means no coordinates, and the canvas applies its canonical
+// left-to-right layout. Coordinates that would break the rule are dropped whole,
+// for the same outcome.
 function toStoredNodes(nodes) {
-  return nodes.map((n, i) => ({
+  const placed = nodes.map((n) => ({
     id: n.id,
-    position: { x: n.x ?? 120 + (i % 6) * 220, y: n.y ?? 120 + Math.floor(i / 6) * 160 },
+    ...(Number.isFinite(n.x) && Number.isFinite(n.y) ? { position: { x: n.x, y: n.y } } : {}),
     // Optional bring-your-own-icon: caller supplies the logo, we just render it.
     ...(n.icon ? { icon: n.icon } : {}),
     ...(n.label ? { label: n.label } : {}),
     ...(n.color ? { color: n.color } : {}),
     ...(n.sub ? { sub: n.sub } : {}),
   }))
+  return placed
+}
+
+// Returns null when the layout is fine, or a reason when it breaks the rule.
+// Only a FULLY hand-placed layout is judged - a partial one is auto-laid anyway.
+function startLeftViolation(storedNodes, edges) {
+  const pos = storedNodes.filter((n) => n.position)
+  if (!pos.length || pos.length !== storedNodes.length) return null
+  const ids = new Set(storedNodes.map((n) => n.id))
+  const incoming = new Set(edges.map((e) => e.target))
+  const startId = (edges[0]?.source && ids.has(edges[0].source))
+    ? edges[0].source
+    : (storedNodes.find((n) => !incoming.has(n.id)) || storedNodes[0]).id
+  const start = pos.find((n) => n.id === startId)
+  if (!start) return null
+  const xs = pos.map((n) => n.position.x)
+  const ys = pos.map((n) => n.position.y)
+  const minX = Math.min(...xs)
+  const [minY, maxY] = [Math.min(...ys), Math.max(...ys)]
+  // A little slack: leftmost COLUMN, not exactly the smallest x.
+  if (start.position.x > minX + 40) return `the start node "${startId}" is not in the leftmost column`
+  // Bottom of the leftmost column still reads as "starts at the bottom". Only
+  // meaningful when the layout HAS vertical spread - in a single row every node
+  // shares one y, which would make the start trivially "lowest".
+  if (maxY > minY + 40 && start.position.y >= maxY - 40) return `the start node "${startId}" sits at the bottom`
+  return null
+}
+
+// Applies the rule: bad coordinates are dropped so the canvas lays the design out
+// left-to-right itself.
+function enforceStartLeft(storedNodes, edges) {
+  const why = startLeftViolation(storedNodes, edges)
+  if (!why) return { nodes: storedNodes, warning: null }
+  return {
+    nodes: storedNodes.map(({ position, ...rest }) => rest),
+    warning:
+      `Positions were dropped and the diagram was auto-laid out left-to-right, because ${why}. ` +
+      `A diagram always starts on the LEFT and reads left-to-right - never from the bottom, never backward. ` +
+      `Omit x/y to get that layout for free.`,
+  }
 }
 function toStoredEdges(edges) {
   return edges.map((e, i) => ({
@@ -134,7 +185,7 @@ server.registerTool(
       title: z.string().describe('Descriptive title, e.g. "URL Shortener - Tier 1"'),
       nodes: z.array(z.object({
         id: z.string().describe('A known service key (e.g. "lambda","dynamo","cyclr","hubspot"), or any unique id when bringing your own icon'),
-        x: z.number().optional(),
+        x: z.number().optional().describe('Optional. OMIT x/y and the canvas lays the design out left-to-right for you - that is the wanted look.'),
         y: z.number().optional(),
         icon: z.string().optional().describe('Bring-your-own logo: a remote https image URL, a data:image URI, or a same-origin /path. Omit for catalog services.'),
         label: z.string().optional().describe('Display name (required with a custom icon), e.g. "HubSpot"'),
@@ -156,8 +207,9 @@ server.registerTool(
       if (failed.length) return fail(`Could not fetch the remote icon for node(s): ${failed.join(', ')}. Use an https image URL that returns image/* under 24KB (no redirects), or inline a data:image URI.`)
       const o = owner()
       const slug = await uniqueSystemDesignSlug(o, title)
-      const storedNodes = toStoredNodes(iconNodes)
       const storedEdges = toStoredEdges(edges)
+      const enforced = enforceStartLeft(toStoredNodes(iconNodes), storedEdges)
+      const storedNodes = enforced.nodes
       const { rows } = await db.query(
         'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[]) RETURNING id',
         [o, title.trim(), slug, JSON.stringify(storedNodes), JSON.stringify(storedEdges), 'system-design', ['MCP']],
@@ -172,6 +224,7 @@ server.registerTool(
       return ok({
         id,
         url: urlFor(id),
+        ...(enforced.warning ? { layout: enforced.warning } : {}),
         ...(near ? {
           warning:
             `A diagram named "${near.title}" (id ${near.id}) was created ${near.age} and looks like the same thing ` +
@@ -219,8 +272,14 @@ server.registerTool(
       // correcting old work is the point of this tool, and a time limit only
       // pushed agents into making a "v2" instead. `reason` stays optional and is
       // recorded when given, as a trail rather than a toll.
-      const nextNodes = iconNodes ? JSON.stringify(toStoredNodes(iconNodes)) : null
       const nextEdges = edges ? JSON.stringify(toStoredEdges(edges)) : null
+      let layoutWarning = null
+      let nextNodes = null
+      if (iconNodes) {
+        const e = enforceStartLeft(toStoredNodes(iconNodes), edges ? toStoredEdges(edges) : [])
+        layoutWarning = e.warning
+        nextNodes = JSON.stringify(e.nodes)
+      }
 
       const { rows } = await db.query(
         `UPDATE system_designs SET
@@ -237,6 +296,7 @@ server.registerTool(
         id,
         url: urlFor(id),
         updated: { title: title != null, nodes: nodes != null, edges: edges != null },
+        ...(layoutWarning ? { layout: layoutWarning } : {}),
         ...(reason?.trim() ? { reason: reason.trim() } : {}),
       })
     } catch (e) { return fail(`update failed: ${e.message}`) }

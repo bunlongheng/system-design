@@ -1,5 +1,5 @@
 import * as dagre from '@dagrejs/dagre'
-import { findService } from './services'
+import { findService } from './services.js'
 
 // Real node cards are ~150w x ~100h; pad them so dagre leaves room for the
 // edge labels that sit BETWEEN nodes.
@@ -91,6 +91,18 @@ export function layoutElements(nodes, edges, { rankdir = 'LR', canvas } = {}) {
 }
 
 // ─── Build ────────────────────────────────────────────────────────────────────
+// The node the canvas marks "Start here": source of step 1, else any node with
+// nothing arriving, else the first node. Kept identical to buildMarkers in
+// App.jsx - if the layout disagreed with the pill, the pill would point at a
+// node sitting in the middle of the diagram.
+function startNodeId(nodes, edges) {
+  if (!nodes.length) return null
+  const has = id => nodes.some(n => n.id === id)
+  if (edges[0]?.source && has(edges[0].source)) return edges[0].source
+  const incoming = new Set(edges.map(e => e.target))
+  return (nodes.find(n => !incoming.has(n.id)) || nodes[0]).id
+}
+
 function buildLayout(nodes, edges, rankdir, canvas, tucked) {
   const g = new dagre.graphlib.Graph()
   g.setGraph({
@@ -106,8 +118,16 @@ function buildLayout(nodes, edges, rankdir, canvas, tucked) {
   // parent's column afterwards instead of earning a rank of their own.
   const flow = nodes.filter(n => !tucked.has(n.id))
   flow.forEach(n => g.setNode(n.id, { width: NODE_W, height: NODE_H }))
+  // Edges INTO the start node are withheld from ranking. On a loop - and most
+  // real designs close one - the return edge gives the entry node an incoming
+  // rank, so dagre pushes it into the middle and the "Start here" pill ends up
+  // somewhere other than the left. Withholding it only affects rank assignment;
+  // the edge still draws.
+  const start = startNodeId(flow, edges)
   edges.forEach(e => {
-    if (e.source && e.target && !tucked.has(e.source) && !tucked.has(e.target)) g.setEdge(e.source, e.target)
+    if (!e.source || !e.target || tucked.has(e.source) || tucked.has(e.target)) return
+    if (e.target === start) return
+    g.setEdge(e.source, e.target)
   })
 
   dagre.layout(g)
