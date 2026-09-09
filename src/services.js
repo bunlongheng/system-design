@@ -26,7 +26,7 @@ export const SERVICES = {
   eureka:       { label: 'Eureka',            sub: 'Service Discovery',   color: '#f59e0b', icon: '/icons/gen-eureka.svg' },
   consul:       { label: 'Consul',            sub: 'Service Discovery',   color: '#f59e0b', icon: '/icons/gen-consul.svg' },
   ec2:          { label: 'EC2',               sub: 'Virtual Servers',     icon: '/icons/ec2.svg',         color: '#ed7406' },
-  microservices:{ label: 'Microservices',     sub: 'Business Logic',      color: '#339933', icon: '/icons/gen-microservices.svg' },
+  microservices:{ label: 'Microservices',     sub: 'Business Logic',      color: '#F7DF1E', icon: '/icons/gen-microservices.svg' },
   service:      { label: 'Service',           sub: 'Microservice',        color: '#339933', icon: '/icons/gen-service.svg' },
   encoder:      { label: 'Encoding Pipeline', sub: 'Media Processing',    color: '#f97316', icon: '/icons/gen-encoder.svg' },
   cassandra:    { label: 'Cassandra',         sub: 'NoSQL DB',            icon: '/icons/keyspaces.svg',   color: '#4050d0' },
