@@ -100,3 +100,71 @@ test("Share on a private diagram publishes it, previews the card, and hands out 
     await api.dispose();
   }
 });
+
+// The regression that shipped: publishing a design removed it from the owner
+// list (which returns only PRIVATE rows) without adding it to the public list
+// (which returns only the 12 curated demos). The old ?name= resolver scanned
+// those two lists, so a published non-demo design was in neither and its own
+// share link 404'd - sharing a diagram broke the link sharing had just made.
+test("a PUBLISHED non-demo design resolves by slug - sharing must not break its own link", async ({
+  page,
+  baseURL,
+}) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: { ...DESIGN, title: "E2E Published Not A Demo" },
+  });
+  const id = (await create.json()).url.split("/?id=")[1];
+  const { slug } = await (await api.get(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } })).json();
+
+  try {
+    await api.patch(`/api/system-designs/${id}`, {
+      headers: { Cookie: OWNER_COOKIE, "Content-Type": "application/json" },
+      data: { is_public: true },
+    });
+
+    // It is public, and it is NOT on the curated demo roster...
+    const demos = await (await api.get("/api/system-designs/public")).json();
+    expect(demos.some((d) => d.slug === slug)).toBe(false);
+    // ...and it is NOT in the owner list either, which only returns private rows.
+    const mine = await (await api.get("/api/system-designs", { headers: { Cookie: OWNER_COOKIE } })).json();
+    expect(mine.some((d) => d.slug === slug)).toBe(false);
+
+    // It must STILL resolve by slug, for a stranger with no session.
+    const bySlug = await api.get(`/api/system-designs/${slug}`);
+    expect(bySlug.status()).toBe(200);
+    expect((await bySlug.json()).id).toBe(id);
+
+    // And the page itself must render the canvas, not "Design not found".
+    await page.goto(`/?name=${slug}`);
+    await page.waitForSelector(".react-flow__node", { timeout: 15000 });
+    expect(await page.locator(".react-flow__node-awsNode").count()).toBe(DESIGN.nodes.length);
+    await expect(page.locator("text=Design not found")).toHaveCount(0);
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+    await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } });
+    await api.dispose();
+  }
+});
+
+test("a slug for a PRIVATE design stays hidden from a stranger", async ({ baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: { ...DESIGN, title: "E2E Private By Slug" },
+  });
+  const id = (await create.json()).url.split("/?id=")[1];
+  const { slug } = await (await api.get(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } })).json();
+  try {
+    // Never published - a slug must not become a way around the privacy check.
+    expect((await api.get(`/api/system-designs/${slug}`)).status()).toBe(404);
+    expect((await api.get(`/api/system-designs/${slug}`, { headers: { Cookie: OWNER_COOKIE } })).status()).toBe(200);
+    // And a slug cannot be used to mutate anything.
+    expect((await api.delete(`/api/system-designs/${slug}`, { headers: { Cookie: OWNER_COOKIE } })).status()).toBe(400);
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
+    await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } });
+    await api.dispose();
+  }
+});
