@@ -42,7 +42,7 @@ function buildEdges(rawEdges, onLabelMove) {
     animated: true,
     data: {
       sourceColor: colorOf(e.source), targetColor: colorOf(e.target), step: i + 1,
-      ...(e.labelOffset ? { labelOffset: e.labelOffset } : {}),
+      ...(typeof e.labelT === 'number' ? { labelT: e.labelT } : {}),
       ...(onLabelMove ? { onLabelMove } : {}),
     },
   }))
@@ -330,24 +330,26 @@ export default function App() {
     }
   }
 
-  // Drag a step badge to somewhere it does not collide. Auto-placement keeps a
-  // badge off its own node but cannot see the other badges, so on a dense
-  // diagram two can still overlap - this is the manual override. `offset: null`
-  // (double-click) puts it back to the computed spot.
-  const onLabelMove = useCallback((edgeId, offset) => {
+  // Slide a step badge along its own edge to somewhere it does not collide.
+  // Auto-placement keeps a badge off its own node but cannot see the other
+  // badges, so on a dense diagram two can still overlap - this is the manual
+  // override. `t` is a 0..1 distance along the edge; null (double-click) puts
+  // it back to the computed spot.
+  const onLabelMove = useCallback((edgeId, t) => {
+    const labelT = typeof t === 'number' ? t : undefined
     setEdges(prev => prev.map(e => (e.id === edgeId
-      ? { ...e, data: { ...e.data, labelOffset: offset || undefined } }
+      ? { ...e, data: { ...e.data, labelT } }
       : e)))
     setActiveDiagram(a => {
       if (!a) return a
       const data = { ...a.data, edges: (a.data.edges || []).map((e, i) => ((e.id || `e${i}`) === edgeId
-        ? { ...e, labelOffset: offset || undefined }
+        ? { ...e, labelT }
         : e)) }
       // Saved on DROP, not debounced. A drop is one discrete action, and a debounce
       // meant dragging a badge then immediately navigating threw the move away.
       if (a.id) {
         const payload = data.edges.map((e, i) => ({
-          id: e.id || `e${i}`, ...(e.labelOffset ? { labelOffset: e.labelOffset } : {}),
+          id: e.id || `e${i}`, ...(typeof e.labelT === 'number' ? { labelT: e.labelT } : {}),
         }))
         fetch(`/api/system-designs/${a.id}`, {
           method: 'PATCH',

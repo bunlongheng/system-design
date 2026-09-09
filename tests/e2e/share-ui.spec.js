@@ -180,7 +180,7 @@ test("a slug for a PRIVATE design stays hidden from a stranger", async ({ baseUR
 // Auto-placement keeps a step badge off its own node, but it cannot see the OTHER
 // badges - on a dense diagram two still collide. The owner drags one clear, and
 // that correction has to survive a reload or it is worthless.
-test("a step badge can be dragged, persists, and double-click resets it", async ({ page, context, baseURL }) => {
+test("a step badge slides ALONG its edge, persists, and double-click resets it", async ({ page, context, baseURL }) => {
   const api = await request.newContext({ baseURL });
   const create = await api.post("/api/ai/system-designs", {
     headers: { Authorization: `Bearer ${SECRET}` },
@@ -196,31 +196,65 @@ test("a step badge can be dragged, persists, and double-click resets it", async 
       await page.waitForSelector(".sd-edge-badge.is-movable", { timeout: 15000 });
     };
     const badge = () => page.locator(".sd-edge-badge").first();
-    const y = async () => Math.round((await badge().boundingBox()).y);
+    // Centre, not y: these edges are horizontal, so sliding ALONG one moves the
+    // badge in x and leaves y almost unchanged.
+    const at = async () => {
+      const b = await badge().boundingBox();
+      return { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) };
+    };
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
     await open();
-    const before = await y();
+    const before = await at();
+
+    // Distance from the badge's centre to the nearest point on its own edge path.
+    const distanceFromEdge = async () => {
+      const b = await badge().boundingBox();
+      return page.evaluate(({ cx, cy }) => {
+        const p = document.querySelector(".react-flow__edge-path");
+        const svg = p.ownerSVGElement;
+        const pt = svg.createSVGPoint();
+        // The badge box is in screen space; the path is in the flow's space.
+        const m = p.getScreenCTM().inverse();
+        pt.x = cx; pt.y = cy;
+        const local = pt.matrixTransform(m);
+        const len = p.getTotalLength();
+        let best = Infinity;
+        for (let i = 0; i <= 200; i++) {
+          const q = p.getPointAtLength((i / 200) * len);
+          best = Math.min(best, Math.hypot(q.x - local.x, q.y - local.y));
+        }
+        return best;
+      }, { cx: b.x + b.width / 2, cy: b.y + b.height / 2 });
+    };
 
     const box = await badge().boundingBox();
     const saved = page.waitForResponse((r) => r.request().method() === "PATCH" && r.status() === 200);
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 70, { steps: 12 });
+    // Drag hard AWAY from the line - the badge must refuse to leave it.
+    await page.mouse.move(box.x + box.width / 2 + 260, box.y + box.height / 2 - 190, { steps: 14 });
     await page.mouse.up();
-    await expect.poll(y).toBeLessThan(before - 50);
     await saved; // the move is only real once it is stored
-    const moved = await y();
+
+    // It moved along the edge...
+    expect(dist(await at(), before)).toBeGreaterThan(20);
+    // ...but it is still sitting on its own edge, not out on open canvas -
+    // the cursor was dragged 260px right and 190px up, far off the line.
+    expect(await distanceFromEdge()).toBeLessThan(14);
+    const moved = await at();
 
     // Survives a reload - the whole point.
     await open();
-    expect(Math.abs((await y()) - moved)).toBeLessThan(10);
+    expect(dist(await at(), moved)).toBeLessThan(10);
+    expect(await distanceFromEdge()).toBeLessThan(14);
 
     // Double-click hands it back to the computed spot.
     const reset = page.waitForResponse((r) => r.request().method() === "PATCH" && r.status() === 200);
     await badge().dblclick();
     await reset;
     await open();
-    expect(Math.abs((await y()) - before)).toBeLessThan(10);
+    expect(dist(await at(), before)).toBeLessThan(10);
   } finally {
     await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
     await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } });

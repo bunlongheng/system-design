@@ -172,35 +172,53 @@ describe("/api/system-designs/:id", () => {
 
   // Dragged step-badge positions. Merged BY EDGE ID into the stored edges, so a
   // stale or malicious client cannot drop labels or rewrite endpoints.
-  it("PATCH edges merges label offsets and never touches label or endpoints", async () => {
+  it("PATCH edges stores labelT and never touches label or endpoints", async () => {
     const stored = [
       { id: "e1", source: "a", target: "b", label: "first" },
-      { id: "e2", source: "b", target: "c", label: "second", labelOffset: { dx: 5, dy: 5 } },
+      { id: "e2", source: "b", target: "c", label: "second", labelT: 0.8 },
     ];
     query.mockResolvedValueOnce({ rows: [{ edges: stored }] });
     query.mockResolvedValueOnce({ rows: [{ id: ID }] });
     const res = mockRes();
     const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
-    // e1 gets an offset; e2's is reset; the caller sends no label or endpoints.
-    r.body = { edges: [{ id: "e1", labelOffset: { dx: 12.6, dy: -40.2 } }, { id: "e2" }] };
+    // e1 gets a position; e2's is reset; the caller sends no label or endpoints.
+    r.body = { edges: [{ id: "e1", labelT: 0.123456 }, { id: "e2" }] };
     await systemDesignById(r, res);
     expect(res.statusCode).toBe(200);
 
     const written = JSON.parse(query.mock.calls[1][1][0]);
-    expect(written[0]).toEqual({ id: "e1", source: "a", target: "b", label: "first", labelOffset: { dx: 13, dy: -40 } });
-    // Reset drops the offset entirely rather than storing a zero.
+    expect(written[0]).toEqual({ id: "e1", source: "a", target: "b", label: "first", labelT: 0.1235 });
+    // Reset drops the key rather than storing a zero, which would mean "at the start".
     expect(written[1]).toEqual({ id: "e2", source: "b", target: "c", label: "second" });
     expect(res.body.moved).toBe(1);
   });
 
-  it("PATCH edges ignores a non-finite offset instead of storing NaN", async () => {
-    query.mockResolvedValueOnce({ rows: [{ edges: [{ id: "e1", source: "a", target: "b" }] }] });
+  it("PATCH edges clamps labelT away from the node ends and ignores a non-number", async () => {
+    query.mockResolvedValueOnce({
+      rows: [{ edges: [{ id: "e1", source: "a", target: "b" }, { id: "e2", source: "b", target: "c" }] }],
+    });
     query.mockResolvedValueOnce({ rows: [{ id: ID }] });
     const res = mockRes();
     const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
-    r.body = { edges: [{ id: "e1", labelOffset: { dx: "x", dy: null } }] };
+    r.body = { edges: [{ id: "e1", labelT: 4.2 }, { id: "e2", labelT: "nope" }] };
     await systemDesignById(r, res);
-    expect(JSON.parse(query.mock.calls[1][1][0])[0].labelOffset).toBeUndefined();
+    const written = JSON.parse(query.mock.calls[1][1][0]);
+    expect(written[0].labelT).toBe(0.88);      // clamped short of the node
+    expect(written[1].labelT).toBeUndefined();  // rubbish ignored
+  });
+
+  it("PATCH edges drops the legacy free-floating offset", async () => {
+    query.mockResolvedValueOnce({
+      rows: [{ edges: [{ id: "e1", source: "a", target: "b", labelOffset: { dx: 30, dy: -20 } }] }],
+    });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
+    r.body = { edges: [{ id: "e1", labelT: 0.5 }] };
+    await systemDesignById(r, res);
+    const written = JSON.parse(query.mock.calls[1][1][0]);
+    expect(written[0].labelOffset).toBeUndefined();
+    expect(written[0].labelT).toBe(0.5);
   });
 
   it("DELETE is a SOFT delete: stamps deleted_at and says it is recoverable", async () => {

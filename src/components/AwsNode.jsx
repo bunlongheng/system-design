@@ -12,7 +12,11 @@ export const AwsNode = memo(function AwsNode({ data }) {
   return (
     <div style={{
       background: `${color}14`, border: `1px solid ${color}`, borderRadius: 0,
-      padding: '12px 16px', minWidth: 130, display: 'flex', flexDirection: 'column',
+      // maxWidth so a long sub WRAPS instead of stretching the card. One node
+      // carrying a sentence used to come out several times wider than the rest,
+      // which throws the whole layout's rhythm off.
+      padding: '12px 16px', minWidth: 130, maxWidth: 210,
+      display: 'flex', flexDirection: 'column',
       alignItems: 'center', gap: 7, position: 'relative',
       boxShadow: '0 1px 3px rgba(0,0,0,0.10)',
     }}>
