@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ReactFlow, Background } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import diagramData from '../data/diagram.json'
@@ -50,7 +50,13 @@ export function DetailView({
   // Opening or closing a side panel changes how much canvas the diagram has, so
   // whatever was fitted a moment ago no longer is. Re-fit on every toggle, in
   // both directions, after a tick so the panel's width is already applied.
+  //
+  // NOT on mount: onInit already fits, and firing a second animated fitView on
+  // top of it left the viewport still settling - enough to shift a drag by half
+  // a pixel and break the snap-align spec.
+  const didMountFit = useRef(false)
   useEffect(() => {
+    if (!didMountFit.current) { didMountFit.current = true; return }
     const t = setTimeout(fitNow, 60)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
