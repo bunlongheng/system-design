@@ -2,17 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import { relativeTime } from '../timeAgo'
 import { DiagramMinimap } from './DiagramMinimap'
 import { brandFor } from '../brands'
+import { tierFor } from '../difficulty.js'
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-// Map the 1-12 difficulty rank to a tier chip (label + colors).
-function tierFor(d) {
-  if (d == null) return null
-  if (d <= 2) return { label: 'Easy', fg: '#15803d', bg: '#f0fdf4', bd: '#dcfce7' }
-  if (d <= 5) return { label: 'Medium', fg: '#b45309', bg: '#fffbeb', bd: '#fef3c7' }
-  if (d <= 8) return { label: 'Hard', fg: '#c2410c', bg: '#fff7ed', bd: '#ffedd5' }
-  return { label: 'Expert', fg: '#b91c1c', bg: '#fef2f2', bd: '#fee2e2' }
-}
 
 export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, onOpen, onViewCode, onDelete }) {
   const brand = showBrand ? brandFor(title) : null
