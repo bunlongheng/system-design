@@ -119,7 +119,7 @@ export const SERVICES = {
   cyclr:        { label: 'Cyclr',          sub: 'Embedded iPaaS',         icon: '/brand/cyclr.png',         color: '#E5202E' },
   jobber:       { label: 'Jobber',         sub: 'Field Service CRM',      icon: '/brand/jobber.png',        color: '#1F5C4A' },
   housecallpro: { label: 'Housecall Pro',  sub: 'Field Service CRM',      icon: '/brand/housecallpro.png',  color: '#1877F2' },
-  integry:      { label: 'Integry',        sub: 'Embedded Integrations',  icon: '/brand/integry.svg',       color: '#2E5E4E' },
+  integry:      { label: 'Integry',        sub: 'Embedded Integrations',  icon: '/brand/integry.png',       color: '#1A73E8' },
   thryv:        { label: 'Thryv',          sub: 'Marketing Center',       icon: '/brand/thryv.png',         color: '#EF7622' },
   auth0:        { label: 'Auth0',          sub: 'Identity',               icon: '/brand/auth0.png',         color: '#EB5424' },
   thryvbc:      { label: 'Thryv',          sub: 'Business Center',        icon: '/brand/thryv.png',         color: '#1A1A1A' },
