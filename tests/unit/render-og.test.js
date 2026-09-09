@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderOgSvg, OG_W, OG_H } from "../../lib/render-og.js";
+import { tierFor } from "../../src/difficulty.js";
 
 const DESIGN = {
   title: "Email Newsletter - 500M Subscribers",
@@ -17,6 +18,22 @@ const DESIGN = {
 };
 
 describe("renderOgSvg", () => {
+  // The share card and the gallery card MUST agree. They were separate copies and
+  // had already drifted: the card's table stopped at 10, so the two hardest demos
+  // (ranks 11 and 12) shipped with no difficulty chip at all.
+  it("shows a difficulty chip for every rank the gallery ranks, 1 through 12", () => {
+    for (let d = 1; d <= 12; d++) {
+      const svg = renderOgSvg({ ...DESIGN, difficulty: d });
+      const expected = tierFor(d).label;
+      expect(svg, `rank ${d} should chip as ${expected}`).toContain(expected);
+    }
+  });
+
+  it("shows no chip when a design is unranked", () => {
+    const svg = renderOgSvg({ ...DESIGN, difficulty: null });
+    for (const label of ["Easy", "Medium", "Hard", "Expert"]) expect(svg).not.toContain(label);
+  });
+
   it("renders a 1200x630 card carrying the title and the pattern line", () => {
     const svg = renderOgSvg(DESIGN);
     expect(svg).toContain(`width="${OG_W}" height="${OG_H}"`);
