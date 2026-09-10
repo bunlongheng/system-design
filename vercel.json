@@ -1,4 +1,5 @@
 {
+  "framework": "nextjs",
   "ignoreCommand": "git log -1 --format=%s | grep -qE '^(chore|ci|test|docs):'",
   "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node db/migrate.mjs; fi && npm run build"
 }
