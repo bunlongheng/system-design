@@ -14,6 +14,7 @@ import { z } from 'zod'
 import db from '../lib/db.js'
 import { uniqueSystemDesignSlug } from '../lib/slugs.js'
 import { titleBase, MIN_BASE_LEN } from '../lib/title-base.js'
+import { arrangeNew } from '../lib/arrange.js'
 import { ownerId } from '../lib/auth-owner.js'
 import { SERVICES } from '../src/services.js'
 import { resolveNodeIcons } from '../lib/resolve-icon.js'
@@ -209,7 +210,9 @@ server.registerTool(
       const slug = await uniqueSystemDesignSlug(o, title)
       const storedEdges = toStoredEdges(edges)
       const enforced = enforceStartLeft(toStoredNodes(iconNodes), storedEdges)
-      const storedNodes = enforced.nodes
+      // Born arranged: a new diagram gets the same layout the Arrange button
+      // produces, so it never lands on the canvas crammed.
+      const storedNodes = arrangeNew(enforced.nodes, storedEdges)
       const { rows } = await db.query(
         'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[]) RETURNING id',
         [o, title.trim(), slug, JSON.stringify(storedNodes), JSON.stringify(storedEdges), 'system-design', ['MCP']],
