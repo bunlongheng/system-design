@@ -2,6 +2,11 @@
 // SocialFooter used across the sibling apps. Shown only on public surfaces
 // (demo landing + a demoed diagram), never in the owner's working views.
 
+
+// Was a vite `define`. Next inlines NEXT_PUBLIC_* into the client bundle, with
+// the package version as the fallback so the footer never renders 'vundefined'.
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0'
+
 const LINKS = [
   {
     href: 'https://bunlongheng.com',
@@ -54,7 +59,7 @@ export function Footer({ fixed = false }) {
       {/* Build version, centered between the credit and the socials, so you can
           always tell which build you are looking at. */}
       <span style={{ fontSize: 11.5, color: '#b6bfcc', fontWeight: 600, letterSpacing: '0.03em', fontVariantNumeric: 'tabular-nums' }}>
-        v{__APP_VERSION__}
+        v{APP_VERSION}
       </span>
 
       <div style={{ display: 'flex', gap: 8 }}>

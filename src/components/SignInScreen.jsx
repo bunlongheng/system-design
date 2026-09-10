@@ -7,6 +7,11 @@
 
 // A small, plausible architecture laid out on a 1200x760 canvas. Nodes sit around
 // the edges so their connecting lines cross behind the centered card (depth).
+
+// Vite exposed IS_DEV; Next replaces process.env.NODE_ENV at build
+// time, so this compiles to a constant in the client bundle exactly the same way.
+const IS_DEV = process.env.NODE_ENV !== 'production'
+
 const NODES = [
   { id: "user", label: "User", x: 120, y: 120, c: "#3b82f6" },
   { id: "cf", label: "CloudFront", x: 330, y: 90, c: "#8C4FFF" },
@@ -119,7 +124,7 @@ export default function SignInScreen({ devBypass, loading }) {
           View live demo &rarr;
         </a>
 
-        {import.meta.env.DEV && (
+        {IS_DEV && (
           <button onClick={devBypass}
             style={{ display: "block", margin: "12px auto 0", background: "none", border: "none", color: "#6366f1", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             Continue without signing in (dev)

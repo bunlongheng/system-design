@@ -10,6 +10,15 @@ import { signSession } from "../../lib/auth-session.js";
 const SECRET = process.env.SYSTEM_DESIGNS_API_SECRET || "e2e-secret";
 const OWNER_COOKIE = `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`;
 
+// Next emits `content="x"/>` where the hand-built HTML emitted `content="x" />`.
+// Assert on the VALUE rather than the framework's whitespace, so this spec is
+// about the card being right, not about who rendered it.
+const meta = (html, key) => {
+  const m = new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`).exec(html);
+  return m ? m[1] : null;
+};
+const titleTag = (html) => (/<title>([^<]*)<\/title>/.exec(html) || [])[1] || null;
+
 const DESIGN = {
   title: "E2E Share Card",
   type: "system-design",
@@ -63,18 +72,17 @@ test("a shared design URL serves its OWN og tags, not the generic site card", as
     const html = await res.text();
 
     // Title comes from the design row, not the static shell.
-    expect(html).toContain(`<meta property="og:title" content="${DESIGN.title}" />`);
-    expect(html).not.toContain('<meta property="og:title" content="System Design" />');
-    expect(html).toContain('<meta property="og:type" content="article" />');
-    expect(html).toContain(`<title>${DESIGN.title} · System Design</title>`);
+    expect(meta(html, "og:title")).toBe(DESIGN.title);
+    expect(meta(html, "og:type")).toBe("article");
+    expect(titleTag(html)).toBe(`${DESIGN.title} · System Design`);
 
     // The card points at the per-design renderer, and the canonical url keeps ?name=.
     expect(html).toMatch(new RegExp(`og:image" content="[^"]*/api/og\\?name=${slug}"`));
     expect(html).toMatch(new RegExp(`og:url" content="[^"]*/demo\\?name=${slug}"`));
 
-    // And it is still the real SPA shell - a human gets the app, not a stub.
-    expect(html).toContain('<div id="root">');
-    expect(html).toMatch(/<script type="module"[^>]*src="\/assets\//);
+    // And it is still the real app shell - a human gets the app, not a stub.
+    // (Vite's <div id="root"> and /assets/ bundle are gone; Next ships its own.)
+    expect(html).toMatch(/<script[^>]*src="\/_next\/static\/chunks\//);
   });
 });
 
@@ -105,7 +113,7 @@ test("a PRIVATE design gets no card and no title - an unlisted link stays unlist
     const row = await (await api.get(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } })).json();
     const html = await (await api.get(`/?name=${row.slug}`)).text();
     expect(html).not.toContain("E2E Private Card");
-    expect(html).toContain('<meta property="og:title" content="System Design" />');
+    expect(meta(html, "og:title")).toBe("System Design");
 
     const og = await api.get(`/api/og?name=${row.slug}`);
     expect(og.status()).toBe(302);
@@ -120,7 +128,7 @@ test("the gallery itself keeps the generic card", async ({ baseURL }) => {
   const api = await request.newContext({ baseURL });
   try {
     const html = await (await api.get("/demo")).text();
-    expect(html).toContain('<meta property="og:title" content="System Design" />');
+    expect(meta(html, "og:title")).toBe("System Design");
   } finally {
     await api.dispose();
   }

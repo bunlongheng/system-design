@@ -33,3 +33,6 @@ playwright-report
 
 # Generated at build time from dist/index.html (asset hashes change every build)
 lib/share-shell.js
+
+# Next build output
+.next
