@@ -154,9 +154,12 @@ test("a PUBLISHED non-demo design resolves by slug - sharing must not break its 
     // It is public, and it is NOT on the curated demo roster...
     const demos = await (await api.get("/api/system-designs/public")).json();
     expect(demos.some((d) => d.slug === slug)).toBe(false);
-    // ...and it is NOT in the owner list either, which only returns private rows.
+    // ...but it IS still in the owner's own list. It used to be excluded there too
+    // (that list filtered on is_public = false), so publishing made a design
+    // vanish from My Diagrams AND break its own share link. Both halves of that
+    // are fixed; this asserts the half that keeps it visible to its owner.
     const mine = await (await api.get("/api/system-designs", { headers: { Cookie: OWNER_COOKIE } })).json();
-    expect(mine.some((d) => d.slug === slug)).toBe(false);
+    expect(mine.some((d) => d.slug === slug)).toBe(true);
 
     // It must STILL resolve by slug, for a stranger with no session.
     const bySlug = await api.get(`/api/system-designs/${slug}`);
