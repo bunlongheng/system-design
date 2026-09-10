@@ -102,7 +102,15 @@ test("Share on a private diagram publishes it, previews the card, and hands out 
     expect(meta(html, "og:image")).toContain(`/api/og?name=${slug}`);
     expect(meta(html, "twitter:card")).toBe("summary_large_image");
 
-    // 5. And that card is a real 1200x630 PNG with the diagram drawn in it.
+    // 5. The card must be the DIAGRAM, not the generic site fallback. The panel
+    //    asks for this card while the design is still private, and caching that
+    //    302 meant a freshly shared link previewed as the generic card for the
+    //    next five minutes - on exactly the share the user just made.
+    const generic = (await api.get("/og.png")).body();
+    //    HEAD too: several link-preview bots send it before GET, and it 405'd.
+    expect((await api.fetch(`/api/og?name=${slug}`, { method: "HEAD" })).status()).toBe(200);
+
+    // 6. And that card is a real 1200x630 PNG with the diagram drawn in it.
     const og = await api.get(`/api/og?name=${slug}`);
     expect(og.headers()["content-type"]).toBe("image/png");
     const buf = await og.body();
@@ -112,6 +120,7 @@ test("Share on a private diagram publishes it, previews the card, and hands out 
     // A card carrying 4 inlined service logos is far bigger than an empty frame;
     // this catches a card that renders as a blank rectangle.
     expect(buf.length).toBeGreaterThan(20000);
+    expect(buf.length).not.toBe((await generic).length); // not the fallback
   } finally {
     await api.delete(`/api/system-designs/${id}`, { headers: { Cookie: OWNER_COOKIE } });
     await api.delete(`/api/system-designs/${id}?purge=1`, { headers: { Cookie: OWNER_COOKIE } });
