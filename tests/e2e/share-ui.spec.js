@@ -13,6 +13,14 @@ const OWNER_COOKIE = `sd_session=${signSession({ email: process.env.OWNER_EMAIL 
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
+// Next emits `content="x"/>` where the hand-built HTML emitted `content="x" />`.
+// Assert on the VALUE rather than the framework's whitespace, so this spec is
+// about the card being right, not about who rendered it.
+const meta = (html, key) => {
+  const m = new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`).exec(html);
+  return m ? m[1] : null;
+};
+
 const DESIGN = {
   title: "E2E Share Flow",
   type: "system-design",
@@ -75,8 +83,11 @@ test("Share on a private diagram publishes it, previews the card, and hands out 
     expect(copied).toContain(`/demo?name=${slug}`);
 
     // And that exact copied URL is the one that serves this design's own tags.
+    // Asserted on the tags themselves - the x-sd-share header existed only to
+    // tell the old share handler apart from a static index.html, and there is no
+    // static shell any more: generateMetadata runs on every route.
     const served = await api.get(new URL(copied).pathname + new URL(copied).search);
-    expect(served.headers()["x-sd-share"]).toBe("hit");
+    expect(meta(await served.text(), "og:title")).toBe(DESIGN.title);
 
     // 3. The panel shows the real card, not a broken image.
     const preview = page.locator('img[alt="Share card preview"]');
@@ -87,10 +98,9 @@ test("Share on a private diagram publishes it, previews the card, and hands out 
     // 4. What a crawler pulls from the shared URL: this design's own title and
     //    its own card, not the generic site one.
     const html = await (await api.get(`/demo?name=${slug}`)).text();
-    expect(html).toContain(`<meta property="og:title" content="${DESIGN.title}" />`);
-    expect(html).not.toContain('<meta property="og:title" content="System Design" />');
-    expect(html).toMatch(new RegExp(`og:image" content="[^"]*/api/og\\?name=${slug}"`));
-    expect(html).toContain('<meta name="twitter:card" content="summary_large_image" />');
+    expect(meta(html, "og:title")).toBe(DESIGN.title);
+    expect(meta(html, "og:image")).toContain(`/api/og?name=${slug}`);
+    expect(meta(html, "twitter:card")).toBe("summary_large_image");
 
     // 5. And that card is a real 1200x630 PNG with the diagram drawn in it.
     const og = await api.get(`/api/og?name=${slug}`);

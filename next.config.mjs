@@ -1,0 +1,24 @@
+// Ported from vercel.json. Next serves the UI and the API from ONE process, so
+// the Express server (serve.mjs) and the two-process dev wrapper are gone.
+// The CSP lives in middleware.js - it needs a per-request nonce.
+/** @type {import('next').NextConfig} */
+import { readFileSync } from "node:fs";
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+
+export default {
+  env: { NEXT_PUBLIC_APP_VERSION: version },
+  // resvg is a native module - it must not be bundled into the server chunk.
+  serverExternalPackages: ["@resvg/resvg-js", "pg"],
+  async headers() {
+    return [{
+      source: "/:path*",
+      headers: [
+        { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        { key: "X-Robots-Tag", value: "index, follow" },
+      ],
+    }];
+  },
+};

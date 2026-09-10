@@ -8,6 +8,10 @@ import { layoutElements } from './layout'
 import { snapAlign } from './snapAlign'
 import { findService } from './services'
 
+// Vite exposed import.meta.env.DEV; Next replaces process.env.NODE_ENV at build
+// time, so this compiles to a constant in the client bundle exactly the same way.
+const IS_DEV = process.env.NODE_ENV !== 'production'
+
 // ─── Default data ─────────────────────────────────────────────────────────────
 
 const colorOf = id => findService({ id })?.color || '#6b7280'
@@ -172,7 +176,7 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [devBypass, setDevBypass] = useState(false)
-  const canAI = (Boolean(user) || import.meta.env.DEV) && !isDemo
+  const canAI = (Boolean(user) || IS_DEV) && !isDemo
   const rfInstance = useRef(null)
   // Snap-align: yellow guides to draw, plus a live "is Cmd/Ctrl down" flag. The
   // flag is a ref because it is read inside the drag handler on every frame.

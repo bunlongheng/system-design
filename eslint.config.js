@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', '.next']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -15,7 +15,9 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: { ...globals.browser, __APP_VERSION__: 'readonly' },
+      // Next replaces process.env.NODE_ENV / NEXT_PUBLIC_* at build time, so client
+      // code legitimately references `process`.
+      globals: { ...globals.browser, process: 'readonly' },
       parserOptions: {
         ecmaVersion: 'latest',
         ecmaFeatures: { jsx: true },
@@ -30,10 +32,10 @@ export default defineConfig([
     // Server-side + config + tests run under Node, not the browser.
     files: [
       'lib/**/*.js',
-      'api/**/*.js',
+      'app/**/*.{js,jsx}',
+      'middleware.js',
+      'next.config.mjs',
       'db/**/*.mjs',
-      'serve.mjs',
-      'vite.config.js',
       'vitest.config.js',
       'playwright.config.js',
       'tests/**/*.{js,jsx}',
@@ -41,5 +43,13 @@ export default defineConfig([
     languageOptions: {
       globals: { ...globals.node },
     },
+  },
+  {
+    // Next's App Router REQUIRES a route file to export metadata /
+    // generateMetadata / viewport / runtime beside the component, which is
+    // exactly what the fast-refresh rule forbids. The rule is a Vite-era
+    // convention and does not apply here.
+    files: ['app/**/*.{js,jsx}', 'middleware.js'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
 ])
