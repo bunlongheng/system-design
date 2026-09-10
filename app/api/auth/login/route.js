@@ -8,3 +8,4 @@ export const dynamic = "force-dynamic";
 
 const route = toRoute(withErrors(handler));
 export const GET = route;
+export const HEAD = route;
