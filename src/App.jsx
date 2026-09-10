@@ -668,14 +668,24 @@ export default function App() {
     const prevKey = (Array.isArray(prev.panels) ? prev.panels : prev.panel ? [prev.panel] : []).join(',')
     if (prevKey === panelKey && prev.badge === badgeMode) return
     clearTimeout(viewSaveTimer.current)
+    const savingId = activeDiagram.id
     viewSaveTimer.current = setTimeout(() => {
       const view_state = { panels: panelKey ? panelKey.split(',') : [], badge: badgeMode }
-      fetch(`/api/system-designs/${activeDiagram.id}`, {
+      fetch(`/api/system-designs/${savingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ view_state }),
       })
-        .then(r => { if (r.ok) setActiveDiagram(a => (a ? { ...a, view_state } : a)) })
+        .then(r => {
+          if (!r.ok) return
+          setActiveDiagram(a => (a ? { ...a, view_state } : a))
+          // The gallery list is fetched once at page load, so its copy of
+          // view_state goes stale the moment a panel is toggled. Reopening a
+          // diagram from that stale row then RESET the panels - and the reset was
+          // saved, destroying the real state. Keep the list in step, the same way
+          // a layout save does.
+          setDiagrams(ds => ds.map(d => (d.id === savingId ? { ...d, view_state } : d)))
+        })
         .catch(() => {})
     }, 600)
     return () => clearTimeout(viewSaveTimer.current)
