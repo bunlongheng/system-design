@@ -3,6 +3,9 @@
 // The CSP lives in middleware.js - it needs a per-request nonce.
 /** @type {import('next').NextConfig} */
 import { readFileSync } from "node:fs";
+// Fail-fast prod env check. It self-runs on import; this used to hang off
+// vite.config.js, which the Next port deleted, so nothing ran it for a day.
+import "./lib/env.js";
 const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 
 export default {

@@ -56,7 +56,7 @@ function NodeNote({ id, note }) {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur() }
             if (e.key === 'Escape') { cancelled.current = true; e.currentTarget.blur() }
           }}
-          style={{ ...NOTE_BOX, width: '100%', resize: 'none', outline: 'none', display: 'block' }} />
+          style={{ ...NOTE_BOX, fontSize: 16, lineHeight: 1.35, width: '100%', resize: 'none', outline: 'none', display: 'block' }} />
       ) : note ? (
         <div title={canEdit ? `${note}\n\nDouble-click to edit` : note} onDoubleClick={canEdit ? startEdit : undefined}
           style={{ ...NOTE_BOX, display: 'inline-block', maxWidth: '100%', cursor: canEdit ? 'text' : 'default', ...CLAMP_3 }}>{note}</div>

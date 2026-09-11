@@ -57,7 +57,7 @@ export function DiagramMinimap({ diagram }) {
   const ic = R * 1.35 // icon size
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', background: '#ffffff', borderRadius: 8 }}>
-      {diagram.edges.map((e, i) => {
+      {(diagram.edges || []).map((e, i) => {
         const fp = posMap[e.source], tp = posMap[e.target]
         if (!fp || !tp) return null
         const color = findService(byNodeId[e.source] || { id: e.source })?.color || '#cbd5e1'

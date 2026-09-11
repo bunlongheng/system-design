@@ -42,8 +42,6 @@ A Vite + React single-page app that renders interactive AWS and GCP system desig
 
 ## Architecture
 
-## Architecture
-
 ```mermaid
 flowchart LR
   Browser["Browser - React SPA with React Flow canvas"]
@@ -145,7 +143,7 @@ curl -X POST https://system-design-bheng.vercel.app/api/ai/system-designs \
 | `GET /api/auth/login` / `callback` / `me`, `POST /api/auth/logout` | Public | Google OAuth (owner-only). Only `OWNER_EMAIL` gets a session; the session gates AI generation in the deployed app. |
 | `GET /api/system-designs` | Public read | The owner's saved designs, newest first (max 60) - the gallery feed. |
 | `GET /api/system-designs/:id` | Public read | Returns a saved design's JSON (what the returned URL renders). |
-| `DELETE /api/system-designs/:id` | Bearer-gated | Removes an artifact. |
+| `DELETE /api/system-designs/:id` | Owner session only (Bearer is rejected) | Soft delete: moves the artifact to trash. `DELETE ...?purge=1` permanently removes a row that is already in trash. |
 | `GET /api/health` | Public | `200`/`503` liveness for the prod monitor (API secret + owner + DB). |
 
 ## Project Structure

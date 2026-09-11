@@ -313,7 +313,7 @@ export default function App() {
       setAiPrompt('')
       setAiThinking(false)
       import('canvas-confetti').then(m => m.default({ particleCount: 120, spread: 80, origin: { y: 0.3 }, zIndex: 9999 }))
-      showToastMsg(`Generated "${data.title}" — ${data.nodes.length} nodes`)
+      showToastMsg(`Generated "${data.title}" - ${data.nodes.length} nodes`)
     } catch {
       showToastMsg('Network error')
       setAiThinking(false)
@@ -325,7 +325,7 @@ export default function App() {
     try {
       const { parseMermaid } = await import('./parseMermaid')
       const { nodes: n, edges: rawE } = parseMermaid(text)
-      if (!n.length) { showToastMsg('Nothing to render — check your syntax'); return null }
+      if (!n.length) { showToastMsg('Nothing to render - check your syntax'); return null }
       const e = buildEdges(rawE)
       setNodes(n)
       setEdges(e)
