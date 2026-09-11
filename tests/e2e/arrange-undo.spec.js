@@ -29,7 +29,7 @@ const DESIGN = {
 const at = (page, id) =>
   page.locator(`.react-flow__node-awsNode[data-id="${id}"]`).evaluate(el => el.style.transform);
 
-test("undo and redo cover both dragging and Arrange", async ({ page, baseURL }) => {
+test("undo and redo cover both dragging and Arrange", async ({ page, context, baseURL }) => {
   const api = await request.newContext({ baseURL });
   const create = await api.post("/api/ai/system-designs", {
     headers: { Authorization: `Bearer ${SECRET}` },
@@ -42,6 +42,9 @@ test("undo and redo cover both dragging and Arrange", async ({ page, baseURL }) 
     headers: { Cookie: OWNER_COOKIE, "Content-Type": "application/json" },
     data: { is_public: true },
   });
+
+  // These exercise OWNER editing: the canvas is read-only for a visitor.
+  await context.addCookies([{ name: "sd_session", value: OWNER_COOKIE.split("=")[1], url: baseURL }]);
 
   try {
     await page.goto(`/?id=${id}`);

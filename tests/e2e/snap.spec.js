@@ -28,7 +28,7 @@ const flowY = async locator => {
   return Number(t.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/)[2]);
 };
 
-test("Cmd + drag snaps a node onto its neighbour's line and shows a yellow guide", async ({ page, baseURL }) => {
+test("Cmd + drag snaps a node onto its neighbour's line and shows a yellow guide", async ({ page, context, baseURL }) => {
   const api = await request.newContext({ baseURL });
   const create = await api.post("/api/ai/system-designs", {
     headers: { Authorization: `Bearer ${SECRET}` },
@@ -41,6 +41,9 @@ test("Cmd + drag snaps a node onto its neighbour's line and shows a yellow guide
     headers: { Cookie: OWNER_COOKIE, "Content-Type": "application/json" },
     data: { is_public: true },
   });
+
+  // These exercise OWNER editing: the canvas is read-only for a visitor.
+  await context.addCookies([{ name: "sd_session", value: OWNER_COOKIE.split("=")[1], url: baseURL }]);
 
   try {
     await page.goto(`/?id=${id}`);

@@ -539,7 +539,9 @@ export default function App() {
         // current layout (with a toast). The backend authorizes owner-only, so a
         // non-owner just gets a "could not save" note.
         e.preventDefault()
-        if (view === 'detail' && activeDiagram?.id) {
+        // A visitor still gets the dialog blocked, but there is nothing to save:
+        // the showcase canvas is read-only for them.
+        if (canAI && view === 'detail' && activeDiagram?.id) {
           if (saveTimer.current) clearTimeout(saveTimer.current)
           doSave(activeDiagram.id, nodesRef.current, true)
         }
@@ -549,10 +551,10 @@ export default function App() {
         const t = e.target
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
         e.preventDefault()
-        if (view === 'detail') (e.shiftKey ? redo : undo)()
+        if (canAI && view === 'detail') (e.shiftKey ? redo : undo)()
       } else if (mod && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault()
-        if (view === 'detail') redo()
+        if (canAI && view === 'detail') redo()
       } else if (mod && (e.key === 'r' || e.key === 'R')) {
         e.preventDefault()
         loadDiagrams()
@@ -1027,6 +1029,7 @@ export default function App() {
       onArrange={autoArrange}
       onNoteChange={canAI ? onNoteChange : undefined}
       isDiagramPublic={activeDiagram?.is_public !== false}
+      canEdit={canAI}
       onToggleVisibility={canAI && activeDiagram?.id ? toggleVisibility : undefined}
       onShareOpen={canAI && activeDiagram?.id ? ensureShareable : undefined}
     />

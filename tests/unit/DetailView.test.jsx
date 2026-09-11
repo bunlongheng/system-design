@@ -140,3 +140,25 @@ describe("share opens = publish", () => {
     expect(screen.getByAltText("Share card preview").getAttribute("src")).toContain("v=private");
   });
 });
+
+// A showcase is meant to be read, not rearranged. A visitor keeps the reading
+// aids (Fit, Details, Steps, badge style) and loses everything that changes the
+// diagram or takes a copy of it.
+describe("read-only demo view", () => {
+  const EDIT_ONLY = [/^code$/i, /^arrange$/i, /^share$/i, /^undo$/i, /^redo$/i];
+  const KEPT = [/^fit$/i, /^details$/i, /^steps$/i];
+
+  it("hides every edit, share and export control when canEdit is false", () => {
+    setup({ canEdit: false, canUndo: true, canRedo: true, onArrange: vi.fn(), showSharePanel: true, showDetailCode: true, shareSlug: "x", shareUrl: "u" });
+    for (const name of EDIT_ONLY) expect(screen.queryByRole("button", { name }), String(name)).toBeNull();
+    for (const name of KEPT) expect(screen.getByRole("button", { name }), String(name)).toBeInTheDocument();
+    // A remembered view_state must not reopen the panels either.
+    expect(screen.queryByAltText("Share card preview")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^copy$/i })).toBeNull();
+  });
+
+  it("keeps them for the owner", () => {
+    setup({ canEdit: true, canUndo: true, canRedo: true, onArrange: vi.fn() });
+    for (const name of [...EDIT_ONLY, ...KEPT]) expect(screen.getByRole("button", { name }), String(name)).toBeInTheDocument();
+  });
+});
