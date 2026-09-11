@@ -162,3 +162,27 @@ describe("read-only demo view", () => {
     for (const name of [...EDIT_ONLY, ...KEPT]) expect(screen.getByRole("button", { name }), String(name)).toBeInTheDocument();
   });
 });
+
+// The info card covers a third of a phone screen, so it folds to a badge.
+describe("info card", () => {
+  const withInfo = { ...sampleDiagram, pattern: "Fan-out on write", description: "A URL shortener." };
+
+  it("folds into a badge on click and comes back", async () => {
+    setup({ activeDiagram: withInfo });
+    const card = screen.getByRole("button", { name: /hide the diagram summary/i });
+    expect(screen.getByText("Fan-out on write")).toBeInTheDocument();
+
+    await userEvent.click(card);
+    expect(screen.queryByText("Fan-out on write")).toBeNull();
+    const badge = screen.getByRole("button", { name: /show the diagram summary/i });
+    expect(badge).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(badge);
+    expect(screen.getByText("Fan-out on write")).toBeInTheDocument();
+  });
+
+  it("renders nothing when the diagram has no pattern or description", () => {
+    setup({ activeDiagram: sampleDiagram });
+    expect(screen.queryByRole("button", { name: /the diagram summary/i })).toBeNull();
+  });
+});
