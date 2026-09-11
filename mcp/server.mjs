@@ -18,9 +18,13 @@ import { arrangeNew } from '../lib/arrange.js'
 import { ownerId } from '../lib/auth-owner.js'
 import { SERVICES } from '../src/services.js'
 import { resolveNodeIcons } from '../lib/resolve-icon.js'
+import { cleanNote } from '../src/note.js'
 
 const APP_URL = process.env.SYSTEM_DESIGNS_APP_URL || 'https://system-design-bheng.vercel.app'
 const urlFor = id => `${APP_URL}/?id=${id}`
+// The link to hand to people. It opens for anyone and unfurls with the diagram
+// itself (Slack, iMessage) - as long as the design is public.
+const shareUrlFor = slug => `${APP_URL}/demo?name=${encodeURIComponent(slug)}`
 const owner = () => {
   const o = ownerId()
   if (!o) throw new Error('OWNER_USER_ID not configured in .env')
@@ -51,6 +55,7 @@ function toStoredNodes(nodes) {
     ...(n.label ? { label: n.label } : {}),
     ...(n.color ? { color: n.color } : {}),
     ...(n.sub ? { sub: n.sub } : {}),
+    ...(cleanNote(n.note) ? { note: cleanNote(n.note) } : {}),
   }))
   return placed
 }
@@ -192,15 +197,17 @@ server.registerTool(
         label: z.string().optional().describe('Display name (required with a custom icon), e.g. "HubSpot"'),
         sub: z.string().optional().describe('Small subtitle under the label, e.g. "CRM"'),
         color: z.string().optional().describe('Brand hex color for the node border/tint, e.g. "#FF7A59"'),
+        note: z.string().max(400).optional().describe('Plain-text note shown under this node (bottom-left, black text in a black frame) in the app, on every shared link and in the SVG. 1-2 sentences on what this step does or why it is there, e.g. "Reads the account\'s Recurly subscriptions, looks the user up in MBD, branches per app."'),
       })).min(1).describe('The services in the diagram'),
       edges: z.array(z.object({
         source: z.string().describe('source node id'),
         target: z.string().describe('target node id'),
         label: z.string().optional().describe('short edge label, e.g. "read/write"'),
       })).default([]).describe('Directed connections between node ids, in flow order'),
+      public: z.boolean().optional().describe('Default true: anyone with the link can open it and the link unfurls with the diagram. false keeps it private (owner only; recipients get a 404 and a generic preview card).'),
     },
   },
-  async ({ title, nodes, edges }) => {
+  async ({ title, nodes, edges, public: isPublic = true }) => {
     try {
       const gate = logoGate(nodes)
       if (gate) return gate
@@ -214,8 +221,8 @@ server.registerTool(
       // produces, so it never lands on the canvas crammed.
       const storedNodes = arrangeNew(enforced.nodes, storedEdges)
       const { rows } = await db.query(
-        'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[]) RETURNING id',
-        [o, title.trim(), slug, JSON.stringify(storedNodes), JSON.stringify(storedEdges), 'system-design', ['MCP']],
+        'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags, is_public) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[],$8) RETURNING id',
+        [o, title.trim(), slug, JSON.stringify(storedNodes), JSON.stringify(storedEdges), 'system-design', ['MCP'], isPublic],
       )
       const id = rows[0].id
 
@@ -227,6 +234,9 @@ server.registerTool(
       return ok({
         id,
         url: urlFor(id),
+        share_url: shareUrlFor(slug),
+        visibility: isPublic ? 'public' : 'private',
+        ...(isPublic ? {} : { share_note: 'Private: recipients get a 404 and Slack shows the generic site card. Call update_system_design with public: true before sending the link.' }),
         ...(enforced.warning ? { layout: enforced.warning } : {}),
         ...(near ? {
           warning:
@@ -257,11 +267,13 @@ server.registerTool(
         id: z.string(), x: z.number().optional(), y: z.number().optional(),
         icon: z.string().optional().describe('Bring-your-own logo: https URL, data:image URI, or /path'),
         label: z.string().optional(), sub: z.string().optional(), color: z.string().optional(),
+        note: z.string().max(400).optional().describe('Plain-text note under the node; see create_system_design. Omit to leave a node without one.'),
       })).optional(),
       edges: z.array(z.object({ source: z.string(), target: z.string(), label: z.string().optional() })).optional(),
+      public: z.boolean().optional().describe('true publishes (anyone with the link can open it, real preview card); false makes it private again. Omit to leave visibility alone.'),
     },
   },
-  async ({ id, reason, title, nodes, edges }) => {
+  async ({ id, reason, title, nodes, edges, public: isPublic }) => {
     try {
       let iconNodes = nodes
       if (nodes) {
@@ -290,15 +302,18 @@ server.registerTool(
            nodes = COALESCE($3::jsonb, nodes),
            edges = COALESCE($4::jsonb, edges),
            update_reason = COALESCE($5, update_reason),
+           is_public = COALESCE($7, is_public),
            updated_at = now()
-         WHERE id = $1 AND user_id = $6 AND deleted_at IS NULL RETURNING id`,
-        [id, title?.trim() ?? null, nextNodes, nextEdges, reason?.trim() ?? null, owner()],
+         WHERE id = $1 AND user_id = $6 AND deleted_at IS NULL RETURNING id, slug, is_public`,
+        [id, title?.trim() ?? null, nextNodes, nextEdges, reason?.trim() ?? null, owner(), isPublic ?? null],
       )
       if (!rows.length) return fail(`No owned diagram with id ${id} (it may be in trash - call list_trash)`)
       return ok({
         id,
         url: urlFor(id),
-        updated: { title: title != null, nodes: nodes != null, edges: edges != null },
+        share_url: shareUrlFor(rows[0].slug),
+        visibility: rows[0].is_public ? 'public' : 'private',
+        updated: { title: title != null, nodes: nodes != null, edges: edges != null, public: isPublic != null },
         ...(layoutWarning ? { layout: layoutWarning } : {}),
         ...(reason?.trim() ? { reason: reason.trim() } : {}),
       })
@@ -425,10 +440,11 @@ server.registerTool(
       'A service key can appear at most once per diagram (node ids are unique).',
       'Edges are directed { source, target, label? } using node ids; order them in execution/flow order.',
       'Node positions (x,y) are optional - the app auto-layouts on open.',
+      'A node may carry a plain-text `note` (max 400 chars): 1-2 sentences on what that step does. It renders under the card, bottom-left, in the app, on every shared link and in the SVG - so put the per-step explanation THERE, not only in the title or edge labels.',
     ],
     example: {
       title: 'URL Shortener - Tier 1',
-      nodes: [{ id: 'user' }, { id: 'cloudfront' }, { id: 'apigw' }, { id: 'lambda' }, { id: 'dynamo' }],
+      nodes: [{ id: 'user' }, { id: 'cloudfront', note: 'Edge cache. A hit answers here and never reaches the API.' }, { id: 'apigw' }, { id: 'lambda', note: 'Looks the short code up and 302s to the long URL.' }, { id: 'dynamo' }],
       edges: [
         { source: 'user', target: 'cloudfront', label: 'GET /abc' },
         { source: 'cloudfront', target: 'apigw', label: 'miss' },

@@ -35,7 +35,9 @@ app (and on prod) immediately.
 
 - Each node `id` must be a service key from `list_services` (e.g. `user`, `apigw`, `lambda`, `ses`, `dynamo`, `kafka`, `redis`, `s3`). A key can appear once per diagram.
 - Edges are directed `{ source, target, label? }` using node ids; order them in flow order.
+- A node may carry a plain-text `note` (max 400 chars): 1-2 sentences on what that step does. It renders under the card, bottom-left, in the app, on every shared link and in the SVG. Set it on create, or later with `update_system_design` (send the full `nodes` list with `note` on the ones that need it).
 - Node `x`/`y` are optional - the app auto-layouts on open.
+- `public` (default true on create) controls who can open the link. Hand people the `share_url` from the response (`/demo?name=<slug>`): it opens for anyone and unfurls with the diagram itself in Slack and iMessage. A private diagram 404s for recipients and previews as the generic site card - flip it with `update_system_design { public: true }`.
 
 ## Requirements
 

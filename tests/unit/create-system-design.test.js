@@ -84,3 +84,68 @@ describe("POST /api/ai/system-designs (public render-only)", () => {
     expect(Array.isArray(insertCall[1])).toBe(true);
   });
 });
+
+describe("POST /api/ai/system-designs - node notes", () => {
+  const orig = { s: process.env.SYSTEM_DESIGNS_API_SECRET, o: process.env.OWNER_USER_ID };
+  beforeEach(() => {
+    process.env.SYSTEM_DESIGNS_API_SECRET = SECRET;
+    process.env.OWNER_USER_ID = "731ace87-64e5-44db-bf2a-82265f06f4d9";
+    query.mockReset();
+    query.mockResolvedValueOnce({ rows: [] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+  });
+  afterEach(() => {
+    process.env.SYSTEM_DESIGNS_API_SECRET = orig.s;
+    process.env.OWNER_USER_ID = orig.o;
+  });
+
+  // A note is part of the payload, so an agent can explain each step in the
+  // same call that draws it - no sign-in, no second request.
+  it("stores a trimmed, bounded note on the node and drops an empty one", async () => {
+    const res = mockRes();
+    const nodes = [
+      { id: "user", note: "  Installs or uninstalls an app.  " },
+      { id: "cloudfront", note: "x".repeat(500) },
+      { id: "apigw", note: "   " },
+    ];
+    await createSystemDesign(good(`Bearer ${SECRET}`, { ...VALID_BODY, nodes, edges: [] }), res);
+    expect(res.statusCode).toBe(201);
+    const written = JSON.parse(query.mock.calls[1][1][3]);
+    expect(written.find((n) => n.id === "user").note).toBe("Installs or uninstalls an app.");
+    expect(written.find((n) => n.id === "cloudfront").note).toHaveLength(400);
+    expect(written.find((n) => n.id === "apigw")).not.toHaveProperty("note");
+  });
+});
+
+describe("POST /api/ai/system-designs - visibility and share link", () => {
+  const orig = { s: process.env.SYSTEM_DESIGNS_API_SECRET, o: process.env.OWNER_USER_ID };
+  beforeEach(() => {
+    process.env.SYSTEM_DESIGNS_API_SECRET = SECRET;
+    process.env.OWNER_USER_ID = "731ace87-64e5-44db-bf2a-82265f06f4d9";
+    query.mockReset();
+    query.mockResolvedValueOnce({ rows: [] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+  });
+  afterEach(() => {
+    process.env.SYSTEM_DESIGNS_API_SECRET = orig.s;
+    process.env.OWNER_USER_ID = orig.o;
+  });
+
+  it("is private by default and says so, with a share_url the recipient can use once public", async () => {
+    const res = mockRes();
+    await createSystemDesign(good(`Bearer ${SECRET}`, VALID_BODY), res);
+    expect(res.statusCode).toBe(201);
+    expect(query.mock.calls[1][1][7]).toBe(false);
+    expect(res.body.visibility).toBe("private");
+    expect(res.body.share_note).toMatch(/404/);
+    expect(res.body.share_url).toMatch(/\/demo\?name=netflix-system-design$/);
+  });
+
+  it("is_public: true publishes on create", async () => {
+    const res = mockRes();
+    await createSystemDesign(good(`Bearer ${SECRET}`, { ...VALID_BODY, is_public: true }), res);
+    expect(query.mock.calls[1][1][7]).toBe(true);
+    expect(res.body.visibility).toBe("public");
+    expect(res.body.share_note).toBeUndefined();
+  });
+});

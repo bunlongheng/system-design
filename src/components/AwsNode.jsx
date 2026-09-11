@@ -1,6 +1,8 @@
-import { memo } from 'react'
+import { memo, useContext, useRef, useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { findService } from '../services'
+import { NoteEditContext } from './noteEditContext'
+import { NOTE_MAX, cleanNote } from '../note'
 
 // ─── Custom Node ──────────────────────────────────────────────────────────────
 
@@ -14,10 +16,63 @@ const CLAMP_2 = {
   overflowWrap: 'anywhere',
 }
 
+const CLAMP_3 = { ...CLAMP_2, WebkitLineClamp: 3 }
+
+// The bordered caption hanging off a card's bottom-left corner. Plain black
+// text in a black frame, clamped to 3 lines with the full note on hover. The
+// owner double-clicks it (or the "+ note" ghost on an empty card) to edit;
+// everyone else just reads it, so a shared link shows exactly the same note.
+const NOTE_BOX = {
+  fontSize: 10, lineHeight: 1.4, color: '#111111', background: '#ffffff',
+  border: '1px solid #111111', borderRadius: 0, padding: '3px 6px',
+  fontFamily: 'inherit', textAlign: 'left', boxSizing: 'border-box',
+}
+
+function NodeNote({ id, note }) {
+  const onNoteChange = useContext(NoteEditContext)
+  const canEdit = typeof onNoteChange === 'function'
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const cancelled = useRef(false)
+  if (!note && !canEdit) return null
+
+  const startEdit = e => { e.stopPropagation(); cancelled.current = false; setDraft(note); setEditing(true) }
+  const commit = () => {
+    setEditing(false)
+    if (cancelled.current) { cancelled.current = false; return }
+    const next = cleanNote(draft)
+    if (next !== note) onNoteChange(id, next)
+  }
+  // nodrag/nopan: typing, selecting and double-clicking here must never move
+  // the card or zoom the canvas.
+  return (
+    <div className="nodrag nopan nowheel" onDoubleClick={e => e.stopPropagation()}
+      style={{ position: 'absolute', top: '100%', left: -1, marginTop: 5, width: 'calc(100% + 2px)', textAlign: 'left' }}>
+      {editing ? (
+        <textarea autoFocus rows={3} value={draft} maxLength={NOTE_MAX} placeholder="What happens at this step?"
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur() }
+            if (e.key === 'Escape') { cancelled.current = true; e.currentTarget.blur() }
+          }}
+          style={{ ...NOTE_BOX, width: '100%', resize: 'none', outline: 'none', display: 'block' }} />
+      ) : note ? (
+        <div title={canEdit ? `${note}\n\nDouble-click to edit` : note} onDoubleClick={canEdit ? startEdit : undefined}
+          style={{ ...NOTE_BOX, display: 'inline-block', maxWidth: '100%', cursor: canEdit ? 'text' : 'default', ...CLAMP_3 }}>{note}</div>
+      ) : (
+        <button type="button" className="sd-note-add" onClick={startEdit} title="Add a note to this step"
+          style={{ ...NOTE_BOX, color: '#6b7280', borderStyle: 'dashed', borderColor: '#9ca3af', cursor: 'pointer', fontWeight: 600 }}>+ note</button>
+      )}
+    </div>
+  )
+}
+
 export const AwsNode = memo(function AwsNode({ data }) {
   const svc = findService(data)
   const color = svc.color || '#6b7280'
   const label = svc.label || data.label || data.id
+  const note = cleanNote(data.note)
 
   return (
     <div style={{
@@ -52,6 +107,7 @@ export const AwsNode = memo(function AwsNode({ data }) {
           ...CLAMP_2,
         }}>{svc.sub}</div>}
       </div>
+      <NodeNote id={data.id} note={note} />
     </div>
   )
 })

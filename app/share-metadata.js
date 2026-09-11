@@ -7,16 +7,22 @@ import db from '../lib/db.js'
 // fired on /demo - because Vercel resolves "/" from the filesystem before
 // rewrites run, so a link off the home route could never get its own card.
 // generateMetadata runs on every route, so that limitation is gone too.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function designMetadata(searchParams, path) {
   const sp = await searchParams;
   const name = typeof sp?.name === "string" ? sp.name : null;
-  if (!name) return {};
+  // ?id=<uuid> is the link the API and MCP return, and the one that gets pasted
+  // into Slack. It used to fall through to the generic site card even for a
+  // public design, because only ?name= was looked up.
+  const id = !name && typeof sp?.id === "string" && UUID_RE.test(sp.id) ? sp.id : null;
+  if (!name && !id) return {};
 
   let rows = [];
   try {
     ({ rows } = await db.query(
-      "SELECT title, slug, description, pattern FROM system_designs WHERE slug = $1 AND is_public = true AND deleted_at IS NULL LIMIT 1",
-      [name],
+      `SELECT title, slug, description, pattern FROM system_designs WHERE ${name ? "slug = $1" : "id = $1::uuid"} AND is_public = true AND deleted_at IS NULL LIMIT 1`,
+      [name || id],
     ));
   } catch {
     // A card is decoration. An unreachable database must never take the page down.

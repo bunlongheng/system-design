@@ -7,7 +7,9 @@ import { tierFor } from '../difficulty.js'
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 
-export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, onOpen, onViewCode, onDelete }) {
+// isPrivate: owner's gallery only - a small lock so a diagram that is not yet
+// shareable is obvious before its link goes anywhere.
+export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, onOpen, onViewCode, onDelete, isPrivate }) {
   const brand = showBrand ? brandFor(title) : null
   const tier = tierFor(difficulty)
   const [active, setActive] = useState(false) // hover OR keyboard focus (for the card's own lift)
@@ -79,7 +81,14 @@ export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, 
           </span>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: brand ? 13 : 12, fontWeight: 700, color: '#1c1e21', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+          <div style={{ fontSize: brand ? 13 : 12, fontWeight: 700, color: '#1c1e21', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
+            {isPrivate && (
+              <span className="dc-private" title="Private: only you can open it. Open it and click the Private pill, or Share, to publish." style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: '#fffbeb', border: '1px solid #fde68a', color: '#b45309', flexShrink: 0 }}>
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+            )}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+          </div>
           {brand && <div style={{ fontSize: 11, color: '#8a8d91', marginTop: 2 }}>{brand.sub}</div>}
         </div>
         <span style={{ fontSize: 10, color: '#8a8d91', flexShrink: 0, alignSelf: 'flex-start', marginTop: 1 }}>{relativeTime(updatedAt)}</span>

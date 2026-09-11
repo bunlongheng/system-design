@@ -61,3 +61,15 @@ describe("DiagramCard", () => {
     expect(onDelete).toHaveBeenCalledTimes(1);
   });
 });
+
+// A private diagram in the owner's gallery carries a lock next to its title,
+// so it is obvious before the link goes anywhere. Public cards show nothing.
+describe("private lock", () => {
+  it("shows the lock only when isPrivate", () => {
+    setup({ isPrivate: true });
+    expect(screen.getByTitle(/Private: only you can open it/)).toBeInTheDocument();
+    cleanup();
+    setup({ isPrivate: false });
+    expect(screen.queryByTitle(/Private: only you can open it/)).toBeNull();
+  });
+});
