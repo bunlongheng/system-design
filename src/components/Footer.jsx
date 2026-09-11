@@ -50,7 +50,7 @@ export function Footer({ fixed = false }) {
     <footer style={{
       borderTop: '1px solid #e6e8ee', background: '#ffffff', padding: '9px 24px',
       display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
-      ...(fixed ? { position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 20 } : { marginTop: 'auto' }),
+      ...(fixed ? { position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 20, paddingBottom: 'env(safe-area-inset-bottom)' } : { marginTop: 'auto' }),
     }}>
       <style>{`.sf-ico{transition:color .12s,border-color .12s,box-shadow .12s,transform .12s}.sf-ico:hover{color:#111827;border-color:#cbd0dc;box-shadow:0 3px 10px rgba(15,23,42,.09);transform:translateY(-1px)}`}</style>
       <span style={{ fontSize: 12.5, color: '#94a3b8' }}>

@@ -6,6 +6,7 @@ import { IndexView } from './views/IndexView'
 import { DetailView } from './views/DetailView'
 import { layoutElements } from './layout'
 import { fitOptions } from './fitOptions'
+import { rowToDiagram } from './rowToDiagram'
 import { snapAlign } from './snapAlign'
 import { findService } from './services'
 
@@ -238,19 +239,7 @@ export default function App() {
     return fetch(showcase ? '/api/system-designs/public' : '/api/system-designs')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(rows => {
-        const mapped = rows.map(r => ({
-          id: r.id,
-          slug: r.slug || '',
-          view_state: r.view_state || null,
-          is_public: r.is_public,
-          title: r.title,
-          description: r.description || '',
-          pattern: r.pattern || '',
-          difficulty: r.difficulty ?? null,
-          data: { nodes: r.nodes, edges: r.edges },
-          updatedAt: r.created_at,
-          tags: r.tags || [],
-        }))
+        const mapped = rows.map(rowToDiagram)
         // Never fall back to the IFTTT SEED sample in a showcase view - only real demos.
         setListError(false)
         setDiagrams(mapped.length ? mapped : (showcase ? [] : SEED))
@@ -552,7 +541,7 @@ export default function App() {
         e.preventDefault()
         if (view === 'detail' && activeDiagram?.id) {
           if (saveTimer.current) clearTimeout(saveTimer.current)
-          doSave(activeDiagram.id, nodes, true)
+          doSave(activeDiagram.id, nodesRef.current, true)
         }
       } else if (mod && (e.key === 'z' || e.key === 'Z')) {
         // Cmd/Ctrl+Z undoes, +Shift redoes - but never while typing in the AI
@@ -572,7 +561,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [view, canAI, activeDiagram, nodes, doSave, loadDiagrams, showToastMsg, undo, redo])
+  }, [view, canAI, activeDiagram, doSave, loadDiagrams, showToastMsg, undo, redo])
 
   // Auto-arrange: re-run dagre on the current nodes (start on the left, spread out,
   // steps ordered top-to-bottom, labels clear of nodes), fit-zoom, and persist for
@@ -662,7 +651,7 @@ export default function App() {
     fetch(`/api/system-designs/${id}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(d => {
-        openDiagram({ id: d.id, slug: d.slug || '', view_state: d.view_state || null, is_public: d.is_public, title: d.title, description: d.description || '', pattern: d.pattern || '', data: { nodes: d.nodes, edges: d.edges }, updatedAt: d.created_at, tags: d.tags || [] })
+        openDiagram(rowToDiagram(d))
         setLoadingId(false)
       })
       .catch(() => {
@@ -690,7 +679,7 @@ export default function App() {
     fetch(`/api/system-designs/${encodeURIComponent(name)}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(row => {
-        openDiagram({ id: row.id, slug: row.slug, view_state: row.view_state || null, is_public: row.is_public, title: row.title, description: row.description || '', pattern: row.pattern || '', difficulty: row.difficulty ?? null, data: { nodes: row.nodes, edges: row.edges }, updatedAt: row.created_at, tags: row.tags || [] })
+        openDiagram(rowToDiagram(row))
         setLoadingId(false)
       })
       .catch(() => { setLoadError(true); setLoadingId(false) })
