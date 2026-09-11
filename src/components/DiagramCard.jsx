@@ -89,17 +89,17 @@ export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, 
             )}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
           </div>
-          {brand && <div style={{ fontSize: 11, color: '#8a8d91', marginTop: 2 }}>{brand.sub}</div>}
+          {brand && <div style={{ fontSize: 11, color: '#65676b', marginTop: 2 }}>{brand.sub}</div>}
         </div>
-        <span style={{ fontSize: 10, color: '#8a8d91', flexShrink: 0, alignSelf: 'flex-start', marginTop: 1 }}>{relativeTime(updatedAt)}</span>
+        <span style={{ fontSize: 10, color: '#65676b', flexShrink: 0, alignSelf: 'flex-start', marginTop: 1 }}>{relativeTime(updatedAt)}</span>
       </div>
 
       {/* Node / edge counts */}
       <div style={{ padding: '0 13px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 20, background: '#eef2f7', color: '#64748b', border: '1px solid #e3e8ee', letterSpacing: '0.01em', lineHeight: 1.5 }}>
+        <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 20, background: '#eef2f7', color: '#475569', border: '1px solid #e3e8ee', letterSpacing: '0.01em', lineHeight: 1.5 }}>
           {diagram.nodes.length} {diagram.nodes.length === 1 ? 'node' : 'nodes'}
         </span>
-        <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 20, background: '#eef2f7', color: '#64748b', border: '1px solid #e3e8ee', letterSpacing: '0.01em', lineHeight: 1.5 }}>
+        <span style={{ fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 20, background: '#eef2f7', color: '#475569', border: '1px solid #e3e8ee', letterSpacing: '0.01em', lineHeight: 1.5 }}>
           {diagram.edges.length} {diagram.edges.length === 1 ? 'edge' : 'edges'}
         </span>
         {tier && (
@@ -118,7 +118,7 @@ export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, 
       <div className="dc-actions" style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 4, zIndex: 2 }} onClick={e => e.stopPropagation()}>
         <button onClick={onViewCode} title="View code" aria-label="View code"
           style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #e4e6e8', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-          <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#8a8d91" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
           </svg>
         </button>

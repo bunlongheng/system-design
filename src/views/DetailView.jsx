@@ -80,7 +80,7 @@ export function DetailView({
           narrow screens so every action stays reachable instead of clipping. */}
       <header className="sd-detail-header" style={{
         height: 54, background: 'linear-gradient(180deg, #fbfbfc 0%, #eef0f3 100%)', borderBottom: '1px solid #e4e7ea',
-        display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0,
+        display: 'flex', alignItems: 'center', padding: '0 16px', paddingTop: 'env(safe-area-inset-top)', boxSizing: 'content-box', gap: 10, flexShrink: 0,
         overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch',
       }}>
         {/* Back button */}
@@ -117,13 +117,14 @@ export function DetailView({
             and Slack a generic card. This says which it is, and flips it. */}
         {onToggleVisibility && (
           <button type="button" className="sd-visibility" data-public={isDiagramPublic ? '1' : '0'}
+            role="switch" aria-checked={isDiagramPublic} aria-label={isDiagramPublic ? 'Public: anyone with the link can open it' : 'Private: only you can open it'}
             onClick={onToggleVisibility}
             title={isDiagramPublic
               ? 'Public: anyone with the link can open it, and it previews with the diagram. Click to make it private.'
               : 'Private: only you can open it. Anyone else gets a 404 and a generic preview card. Click to publish.'}
             style={{
               flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
-              height: 22, padding: '0 9px 0 7px', borderRadius: 999, cursor: 'pointer',
+              height: 28, padding: '0 10px 0 8px', borderRadius: 999, cursor: 'pointer',
               fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
               background: isDiagramPublic ? '#ecfdf5' : '#fffbeb',
               color: isDiagramPublic ? '#047857' : '#b45309',
@@ -419,13 +420,13 @@ export function DetailView({
             }}>
               {activeDiagram?.pattern && (
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9aa0a6', marginBottom: 3 }}>What it tests</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6b7280', marginBottom: 3 }}>What it tests</div>
                   <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.45, color: '#1a1a1a' }}>{activeDiagram.pattern}</div>
                 </div>
               )}
               {activeDiagram?.description && (
                 <div>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9aa0a6', marginBottom: 3 }}>Goal</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6b7280', marginBottom: 3 }}>Goal</div>
                   <div style={{ fontSize: 12, lineHeight: 1.5, color: '#444' }}>{activeDiagram.description}</div>
                 </div>
               )}
@@ -458,7 +459,7 @@ export function DetailView({
             {/* Pattern - the one-line "what this really tests" (fan-out, idempotency, ...) */}
             {activeDiagram?.pattern && (
               <div style={{ padding: '4px 18px 6px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9aa0a6', marginBottom: 6 }}>What it tests</div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', marginBottom: 6 }}>What it tests</div>
                 <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5, color: '#1a1a1a' }}>
                   {activeDiagram.pattern}
                 </div>
@@ -467,7 +468,7 @@ export function DetailView({
 
             {/* Goal */}
             <div style={{ padding: '10px 18px 16px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9aa0a6', marginBottom: 6 }}>Goal</div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', marginBottom: 6 }}>Goal</div>
               <div style={{ fontSize: 13, lineHeight: 1.6, color: '#444' }}>
                 {activeDiagram?.description || 'No description yet for this diagram.'}
               </div>
@@ -476,7 +477,7 @@ export function DetailView({
             {/* Steps */}
             {steps.length > 0 && (
               <div style={{ padding: '0 18px 24px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 10 }}>Steps ({steps.length})</div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', marginBottom: 10 }}>Steps ({steps.length})</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {steps.map(s => (
                     <div key={s.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -500,14 +501,14 @@ export function DetailView({
             display: 'flex', flexDirection: 'column', padding: '20px 16px',
             animation: 'sd-slide-right 0.2s ease-out',
           }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 16 }}>Export & Share</div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', marginBottom: 16 }}>Export & Share</div>
 
             {/* Sneak peek: the exact 1200x630 card Slack, iMessage and X will
                 render for this link. Shown only for a saved design with a slug -
                 an unsaved or pasted diagram has no public URL to preview. */}
             {shareSlug && (
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 6 }}>Link preview</div>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', marginBottom: 6 }}>Link preview</div>
                 <img
                   /* Keyed on visibility: the card the browser fetched while the
                      design was private is the generic one, and it must reload the
@@ -518,7 +519,7 @@ export function DetailView({
                   style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff' }}
                   onError={e => { e.currentTarget.style.display = 'none' }}
                 />
-                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6, wordBreak: 'break-all', lineHeight: 1.4 }}>{shareUrl}</div>
+                <div style={{ fontSize: 10, color: '#6b7280', marginTop: 6, wordBreak: 'break-all', lineHeight: 1.4 }}>{shareUrl}</div>
               </div>
             )}
 

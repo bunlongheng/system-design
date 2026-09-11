@@ -65,6 +65,7 @@ export function IndexView({
         .sd-grid-demo { grid-template-columns: repeat(4, 1fr) !important; }
         @media (max-width: 1280px) { .sd-grid-demo { grid-template-columns: repeat(3, 1fr) !important; } }
         @media (max-width: 1024px) { .sd-grid-demo { grid-template-columns: repeat(2, 1fr) !important; } }
+        @media (max-width: 480px) { .sd-grid-demo { grid-template-columns: 1fr !important; } }
         @media (max-width: 640px) {
           .sd-header { padding: 0 16px !important; }
           .sd-search-wrap { flex: 1 !important; width: auto !important; }
@@ -97,7 +98,7 @@ export function IndexView({
       )}
 
       {/* ── Header ── */}
-      <header className="sd-header" style={{ background: '#ffffff', borderBottom: '1px solid #e4e6e8', height: 56, position: 'sticky', top: 0, zIndex: 10 }}>
+      <header className="sd-header" style={{ background: '#ffffff', borderBottom: '1px solid #e4e6e8', height: 56, paddingTop: 'env(safe-area-inset-top)', boxSizing: 'content-box', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 1600, margin: '0 auto', padding: '0 32px', height: '100%', display: 'flex', alignItems: 'center', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <img src="/icon.png" width={28} height={28} alt="" style={{ borderRadius: 8 }} />
@@ -264,7 +265,7 @@ export function IndexView({
       {/* ── FAB ── */}
       {canAI && (
         <button onClick={openAIPrompt} title="Generate with AI"
-          style={{ position: 'fixed', bottom: 32, right: 32, width: 52, height: 52, borderRadius: '50%', background: '#1c1e21', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'none', cursor: 'pointer', fontSize: 24, color: '#fff', transition: 'transform 0.15s, box-shadow 0.15s', zIndex: 5 }}
+          style={{ position: 'fixed', bottom: 'calc(32px + env(safe-area-inset-bottom))', right: 32, width: 52, height: 52, borderRadius: '50%', background: '#1c1e21', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'none', cursor: 'pointer', fontSize: 24, color: '#fff', transition: 'transform 0.15s, box-shadow 0.15s', zIndex: 5 }}
           onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(0,0,0,0.4)' }}
           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)' }}
         >✦</button>

@@ -103,20 +103,21 @@ describe("visibility pill", () => {
   it("shows Private for a private diagram and flips on click", async () => {
     const onToggleVisibility = vi.fn();
     setup({ isDiagramPublic: false, onToggleVisibility });
-    const pill = screen.getByRole("button", { name: /private/i });
+    const pill = screen.getByRole("switch", { name: /private/i });
     expect(pill).toHaveAttribute("title", expect.stringMatching(/404/));
+    expect(pill).toHaveAttribute("aria-checked", "false");
     await userEvent.click(pill);
     expect(onToggleVisibility).toHaveBeenCalledTimes(1);
   });
 
   it("shows Public for a public diagram", () => {
     setup({ isDiagramPublic: true, onToggleVisibility: vi.fn() });
-    expect(screen.getByRole("button", { name: /public/i })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /public/i })).toBeInTheDocument();
   });
 
   it("is hidden for anyone who is not the owner", () => {
     setup({ isDiagramPublic: false });
-    expect(screen.queryByRole("button", { name: /private/i })).toBeNull();
+    expect(screen.queryByRole("switch", { name: /private/i })).toBeNull();
   });
 });
 
