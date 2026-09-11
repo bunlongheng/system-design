@@ -84,3 +84,35 @@ test("the /?name= URL renders the design in the browser", async ({ page, baseURL
     await api.dispose();
   }
 });
+
+// A shared link is opened on a phone. Fitting the whole graph there used to land
+// at zoom 0.2 (2px labels); now it opens on the start node at a readable zoom.
+test("a phone opens the canvas at a readable zoom, not fit-to-everything", async ({ browser, baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const wide = {
+    title: "Phone fit check", is_public: true,
+    nodes: ["user", "cloudfront", "apigw", "lambda", "dynamo", "s3", "sqs"].map((id) => ({ id })),
+    edges: [["user", "cloudfront"], ["cloudfront", "apigw"], ["apigw", "lambda"], ["lambda", "dynamo"], ["lambda", "s3"], ["lambda", "sqs"]].map(([source, target]) => ({ source, target })),
+  };
+  const create = await api.post("/api/ai/system-designs", { headers: { Authorization: `Bearer ${SECRET}` }, data: wide });
+  const id = (await create.json()).url.split("/?id=")[1];
+  try {
+    const row = await (await api.get(`/api/system-designs/${id}`)).json();
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(`/demo?name=${row.slug}`);
+    await page.waitForSelector(".react-flow__node", { timeout: 20000 });
+    await page.waitForTimeout(800);
+    const scale = await page.locator(".react-flow__viewport").evaluate((el) => {
+      const m = /scale\(([\d.]+)\)/.exec(el.style.transform); return m ? Number(m[1]) : NaN;
+    });
+    expect(scale).toBeGreaterThanOrEqual(0.5);
+    // The start node is on screen.
+    const box = await page.locator('.react-flow__node[data-id="user"]').boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    await ctx.close();
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });
+  }
+});
