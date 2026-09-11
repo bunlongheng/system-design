@@ -10,7 +10,9 @@ import { Toast } from '../components/Toast'
 import { SnapGuides } from '../components/SnapGuides'
 import { Footer } from '../components/Footer'
 import { brandFor } from '../brands'
-import { fitOptions } from '../fitOptions'
+
+// Below this width the summary card starts folded and the canvas is the page.
+const PHONE_MAX_WIDTH = 640
 
 // ─── Detail (canvas) view ───────────────────────────────────────────────────
 
@@ -56,14 +58,14 @@ export function DetailView({
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The info card sits over the canvas. On a phone it covers a third of the
   // diagram, so one tap folds it down to a small badge in the same corner.
-  const [infoOpen, setInfoOpen] = useState(true)
+  const [infoOpen, setInfoOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > PHONE_MAX_WIDTH)
   // Fit is an ACTION, but it reads as a state on touch (the inline hover
   // background never clears without a mouseleave). So make the state real:
   // lit only while the canvas actually IS the fitted view, cleared the moment
   // you pan or zoom away from it.
   const [fitted, setFitted] = useState(true)
   const fitNow = () => {
-    rfInstanceRef.current?.fitView(fitOptions(nodes, edges, { padding: 0.12, duration: 400 }))
+    rfInstanceRef.current?.fitView({ padding: 0.12, duration: 400 })
     setFitted(true)
   }
 
@@ -74,6 +76,27 @@ export function DetailView({
   // NOT on mount: onInit already fits, and firing a second animated fitView on
   // top of it left the viewport still settling - enough to shift a drag by half
   // a pixel and break the snap-align spec.
+  // Rotating a phone changes the canvas shape, so the old fit is wrong the
+  // moment it happens. Re-fit on resize/rotate, but only while the view IS the
+  // fitted one - someone who has pinched in keeps their zoom.
+  const fittedRef = useRef(true)
+  useEffect(() => { fittedRef.current = fitted }, [fitted])
+  useEffect(() => {
+    let t
+    const refit = () => {
+      clearTimeout(t)
+      t = setTimeout(() => {
+        if (!fittedRef.current) return
+        rfInstanceRef.current?.fitView({ padding: 0.15, duration: 300 })
+        setFitted(true)
+      }, 180)
+    }
+    window.addEventListener('resize', refit)
+    window.addEventListener('orientationchange', refit)
+    return () => { clearTimeout(t); window.removeEventListener('resize', refit); window.removeEventListener('orientationchange', refit) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const didMountFit = useRef(false)
   useEffect(() => {
     if (!didMountFit.current) { didMountFit.current = true; return }
@@ -114,7 +137,7 @@ export function DetailView({
         {/* Diagram name (with brand logo, matching the card) */}
         {brand && (
           <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, background: '#ffffff', border: '1px solid #e7e9ee', flexShrink: 0 }}>
-            <img src={brand.icon} alt="" width={15} height={15} style={{ objectFit: 'contain' }} />
+            <img src={brand.icon} alt="" width={13.5} height={13.5} style={{ objectFit: 'contain' }} />
           </span>
         )}
         <span className="sd-detail-title" style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
@@ -404,7 +427,7 @@ export function DetailView({
             /* Cmd/Ctrl is reserved for snap-align while dragging, so additive
                multi-select moves to Shift (box-select already uses Shift). */
             multiSelectionKeyCode="Shift"
-            onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => { inst.fitView(fitOptions(nodes, edges, { padding: 0.15 })); setFitted(true) }, 0) }}
+            onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => { inst.fitView({ padding: 0.15 }); setFitted(true) }, 0) }}
             /* event is null when react-flow moves the viewport itself (fitView),
                and set when a finger or wheel did it - only the latter un-fits. */
             onMove={(event) => { if (event) setFitted(false) }}

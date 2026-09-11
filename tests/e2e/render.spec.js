@@ -85,9 +85,10 @@ test("the /?name= URL renders the design in the browser", async ({ page, baseURL
   }
 });
 
-// A shared link is opened on a phone. Fitting the whole graph there used to land
-// at zoom 0.2 (2px labels); now it opens on the start node at a readable zoom.
-test("a phone opens the canvas at a readable zoom, not fit-to-everything", async ({ browser, baseURL }) => {
+// A shared link is opened on a phone. Auto-fit is the wanted look: the whole
+// shape on screen, with pinch-zoom for the detail. It must also survive a
+// rotation, which changes the canvas shape under it.
+test("a phone auto-fits the whole diagram, and re-fits after a rotation", async ({ browser, baseURL }) => {
   const api = await request.newContext({ baseURL });
   const wide = {
     title: "Phone fit check", is_public: true,
@@ -102,15 +103,21 @@ test("a phone opens the canvas at a readable zoom, not fit-to-everything", async
     const page = await ctx.newPage();
     await page.goto(`/demo?name=${row.slug}`);
     await page.waitForSelector(".react-flow__node", { timeout: 20000 });
-    await page.waitForTimeout(800);
-    const scale = await page.locator(".react-flow__viewport").evaluate((el) => {
-      const m = /scale\(([\d.]+)\)/.exec(el.style.transform); return m ? Number(m[1]) : NaN;
-    });
-    expect(scale).toBeGreaterThanOrEqual(0.5);
-    // The start node is on screen.
-    const box = await page.locator('.react-flow__node[data-id="user"]').boundingBox();
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    await page.waitForTimeout(900);
+
+    // Every service node is inside the viewport, which is what auto-fit means.
+    const allVisible = async () => {
+      const boxes = await page.locator(".react-flow__node-awsNode").evaluateAll((els) =>
+        els.map((el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; }));
+      const vw = page.viewportSize();
+      return boxes.length > 0 && boxes.every((b) => b.l >= -1 && b.r <= vw.width + 1 && b.t >= -1 && b.b <= vw.height + 1);
+    };
+    expect(await allVisible()).toBe(true);
+
+    // Rotate to landscape: the fit has to follow.
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.waitForTimeout(900);
+    expect(await allVisible()).toBe(true);
     await ctx.close();
   } finally {
     await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });
