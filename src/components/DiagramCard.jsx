@@ -59,7 +59,7 @@ export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, 
         @media (hover: none) { .dc-card .dc-actions { opacity: 1; pointer-events: auto; } }
       `}</style>
 
-      {/* Full-bleed transparent overlay button — the actual open control. Sits
+      {/* Full-bleed transparent overlay button - the actual open control. Sits
           below .dc-actions in stacking order so the action buttons stay clickable
           and are no longer nested inside an interactive element (a11y fix). */}
       <button

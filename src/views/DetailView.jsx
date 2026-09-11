@@ -75,7 +75,7 @@ export function DetailView({
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       <Toast message={toast.message} visible={toast.visible} />
 
-      {/* Header — diagrams-style floating pill toolbar. Scrolls horizontally on
+      {/* Header - diagrams-style floating pill toolbar. Scrolls horizontally on
           narrow screens so every action stays reachable instead of clipping. */}
       <header className="sd-detail-header" style={{
         height: 54, background: 'linear-gradient(180deg, #fbfbfc 0%, #eef0f3 100%)', borderBottom: '1px solid #e4e7ea',
@@ -147,7 +147,7 @@ export function DetailView({
 
         <div style={{ flex: 1 }} />
 
-        {/* Action toolbar — floating pill */}
+        {/* Action toolbar - floating pill */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 2,
           background: '#ffffff', border: '1px solid #e4e6e8', borderRadius: 14,
@@ -348,7 +348,7 @@ export function DetailView({
         </div>
       </header>
 
-      {/* Body — code panel + canvas */}
+      {/* Body - code panel + canvas */}
       <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
 
         {/* Code panel (left, slide-in) */}
@@ -521,7 +521,7 @@ export function DetailView({
               </div>
             )}
 
-            {/* Download grid — exact diagrams app colors */}
+            {/* Download grid - exact diagrams app colors */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
               <button onClick={exportPng}
                 style={{ background: '#FF6188', color: '#221F22', cursor: 'pointer', padding: '7px 0', fontSize: 11, fontWeight: 600, borderRadius: 12, border: 'none', transition: 'all 0.1s', fontFamily: 'inherit' }}
