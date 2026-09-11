@@ -5,7 +5,6 @@ import SignInScreen from './components/SignInScreen'
 import { IndexView } from './views/IndexView'
 import { DetailView } from './views/DetailView'
 import { layoutElements } from './layout'
-import { fitOptions } from './fitOptions'
 import { rowToDiagram } from './rowToDiagram'
 import { snapAlign } from './snapAlign'
 import { findService } from './services'
@@ -509,7 +508,7 @@ export default function App() {
     const next = nodesRef.current.map(n => (byId[n.id] ? { ...n, position: { ...byId[n.id] } } : n))
     setNodes(next)
     if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, next)
-    if (refit) setTimeout(() => rfInstance.current?.fitView(fitOptions(nodesRef.current, edgesRef.current, { padding: 0.15, duration: 400 })), 60)
+    if (refit) setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
   }, [canAI, activeDiagram, savePositions])
 
   const undo = useCallback(() => {
@@ -574,7 +573,7 @@ export default function App() {
     pushHistory(positionsOf(current), 'arrange')
     setNodes(arranged)
     if (canAI && activeDiagram?.id) savePositions(activeDiagram.id, arranged)
-    setTimeout(() => rfInstance.current?.fitView(fitOptions(nodesRef.current, edgesRef.current, { padding: 0.15, duration: 400 })), 60)
+    setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 60)
   }, [edges, canAI, activeDiagram, savePositions, pushHistory])
 
   // Let nodes be dragged around the canvas (positions live in React state, and
@@ -635,7 +634,7 @@ export default function App() {
   useEffect(() => {
     if (pendingFit.current && rfInstance.current) {
       setTimeout(() => {
-        rfInstance.current.fitView(fitOptions(nodesRef.current, edgesRef.current, { padding: 0.15, duration: 400 }))
+        rfInstance.current.fitView({ padding: 0.15, duration: 400 })
         // Record the fitted zoom as the baseline so the first PAN (same zoom)
         // never flashes the HUD.
         setTimeout(() => { lastZoomRef.current = rfInstance.current?.getZoom?.() ?? null }, 450)

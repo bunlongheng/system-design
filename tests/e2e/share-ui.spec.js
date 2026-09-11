@@ -326,8 +326,9 @@ test("a visitor cannot move a node on /demo and gets no edit, share or export co
   }
 });
 
-// Phone real estate: the summary card folds away so the diagram gets the screen.
-test("the info card folds to a badge on a phone", async ({ browser, baseURL }) => {
+// Phone real estate: the summary card starts folded so the diagram gets the
+// whole screen, and the badge opens it on demand.
+test("the info card starts folded on a phone and the badge opens it", async ({ browser, baseURL }) => {
   const api = await request.newContext({ baseURL });
   const create = await api.post("/api/ai/system-designs", {
     headers: { Authorization: `Bearer ${SECRET}` },
@@ -350,19 +351,22 @@ test("the info card folds to a badge on a phone", async ({ browser, baseURL }) =
     await page.waitForSelector(".react-flow__node", { timeout: 20000 });
     await page.waitForTimeout(600);
 
-    const card = page.locator(".sd-info-card");
-    await expect(card).toHaveCount(1);
-    const open = (await card.boundingBox()).height;
-
-    await card.click();
+    // Folded from the first frame on a phone: a small badge, no card.
     await expect(page.locator(".sd-info-card")).toHaveCount(0);
     const badge = page.locator(".sd-info-badge");
     const box = await badge.boundingBox();
-    expect(box.height).toBeLessThan(open / 2);
     expect(box.width).toBeLessThanOrEqual(40);
+    expect(box.height).toBeLessThanOrEqual(40);
 
     await badge.click();
-    await expect(page.locator(".sd-info-card")).toHaveCount(1);
+    const card = page.locator(".sd-info-card");
+    await expect(card).toHaveCount(1);
+    expect((await card.boundingBox()).height).toBeGreaterThan(box.height * 2);
+    await expect(card).toContainText("Read-heavy");
+
+    await card.click();
+    await expect(page.locator(".sd-info-card")).toHaveCount(0);
+    await expect(page.locator(".sd-info-badge")).toHaveCount(1);
     await ctx.close();
   } finally {
     await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });

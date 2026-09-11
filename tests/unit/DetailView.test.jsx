@@ -181,6 +181,21 @@ describe("info card", () => {
     expect(screen.getByText("Fan-out on write")).toBeInTheDocument();
   });
 
+  it("starts folded on a phone-width window and open on a desktop one", () => {
+    const w = window.innerWidth;
+    try {
+      window.innerWidth = 390;
+      setup({ activeDiagram: withInfo });
+      expect(screen.getByRole("button", { name: /show the diagram summary/i })).toBeInTheDocument();
+      cleanup();
+      window.innerWidth = 1280;
+      setup({ activeDiagram: withInfo });
+      expect(screen.getByRole("button", { name: /hide the diagram summary/i })).toBeInTheDocument();
+    } finally {
+      window.innerWidth = w;
+    }
+  });
+
   it("renders nothing when the diagram has no pattern or description", () => {
     setup({ activeDiagram: sampleDiagram });
     expect(screen.queryByRole("button", { name: /the diagram summary/i })).toBeNull();

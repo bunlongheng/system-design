@@ -16,10 +16,11 @@ A Next.js 16 app that renders interactive AWS and GCP system-design diagrams on 
 
 ## Features
 
-- **Canvas editing** - React Flow canvas with Fit, Arrange (dagre, left-to-right, step-ordered), Undo/Redo (Cmd+Z / Cmd+Shift+Z) covering drags and Arrange, and snap-align: hold Cmd, Ctrl or Shift while dragging to snap a node onto a neighbour's line with a yellow guide. Owner drags are saved through `PATCH { nodes }`. On a phone (viewport 640px or narrower) Fit frames the start node and its first hops at a readable zoom instead of the whole graph (`src/fitOptions.js`).
+- **Canvas editing** - React Flow canvas with Fit, Arrange (dagre, left-to-right, step-ordered), Undo/Redo (Cmd+Z / Cmd+Shift+Z) covering drags and Arrange, and snap-align: hold Cmd, Ctrl or Shift while dragging to snap a node onto a neighbour's line with a yellow guide. Owner drags are saved through `PATCH { nodes }`. The canvas auto-fits the whole diagram on every device and re-fits when a phone is rotated; pinch-zoom covers the detail.
 - **Steps** - every edge becomes a numbered step badge; badge style cycles Silver / Color / Dark / Plain; a badge slides along its own edge (`labelT`, 0.12..0.88), persists, and double-click resets it. A Details panel shows the pattern, description, and step list.
 - **Per-node notes** - a plain-text note (max 400 chars) under any node. Owner edits inline (`PATCH { notes }`), and the note renders in the app, on shared links, in the SVG export and on the OG card.
 - **Panel memory** - which panels (Steps, Details, Share, Code) and badge style were open is stored per diagram in `view_state` and restored on reopen. Visitors on a shared link never get panels.
+- **Summary card** - the "what it tests" and goal lines sit over the canvas. Tap to fold them into a badge; on a phone it starts folded so the diagram gets the screen. Set the text with `pattern` and `description` on create.
 - **Sharing + cards** - the Share panel previews the real 1200x630 card, copies the `/demo?name=<slug>` link, and offers PNG (html-to-image), JSON, and code exports plus the Web Share API. Opening Share publishes the diagram.
 - **Public / Private** - a pill on every owned diagram toggles `is_public`. Private diagrams 404 for anyone else and preview as the generic site card.
 - **Gallery** - My Diagrams / Demos tabs, title search, and an All / Work / Personal scope over your own diagrams (matches a `work` or `personal` entry in the row's `tags[]` - nothing in the app writes those tags, they are set on the row). Private cards carry a badge. `/demo` is a curated 12-slug public roster ordered by difficulty.
@@ -115,7 +116,6 @@ system-design/
     brands.js
     layout.js               # dagre layout + start marker
     snapAlign.js            # Cmd/Ctrl/Shift drag snapping
-    fitOptions.js           # Phone fit: centre on the start node at a readable zoom
     parseMermaid.js         # Mermaid -> nodes/edges
     note.js                 # cleanNote() (400 char cap)
     difficulty.js / timeAgo.js / usePullToRefresh.js
