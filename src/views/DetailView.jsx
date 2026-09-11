@@ -312,7 +312,9 @@ export function DetailView({
             <span className="sd-btn-label">Steps</span>
           </button>
 
-          <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+          {/* Kept on a phone: Steps and the badge style are the 2 actions left in
+              the bar there, and without a line between them they read as 1 control. */}
+          <div className="sd-divider sd-divider-phone" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Badge style cycle: silver -> color -> dark -> plain */}
           <button onClick={() => {
@@ -335,7 +337,7 @@ export function DetailView({
             <span className="sd-btn-label">{{ silver: 'Silver', color: 'Color', dark: 'Dark', plain: 'Plain' }[badgeMode]}</span>
           </button>
 
-          <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
+          {canEdit && <div className="sd-divider sd-divider-phone" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />}
 
           {/* Share toggle */}
           {canEdit && <button className={showSharePanel ? "is-on" : ""} onClick={() => { if (!showSharePanel) onShareOpen?.(); setShowSharePanel(v => !v) }} style={{
@@ -743,6 +745,7 @@ export function DetailView({
              the 4 desktop-only actions are gone - left in, they stack into a
              row of stray bars. */
           .sd-detail-header .sd-divider { display: none; }
+          .sd-detail-header .sd-divider-phone { display: block; height: 22px !important; margin: 0 4px !important; }
           /* Phone targets, 25% up from the desktop sizes so they land under an
              index finger: the Back tile and the brand tile go 36 -> 45, and the
              toolbar actions 30 -> 38 inside their pill. With only 4 marks in the
