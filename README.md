@@ -252,6 +252,8 @@ Body fields:
 | `type` | Optional, only `"system-design"` is accepted. |
 | `nodes[]` | Required, 1 to 100. Each `{ id, position?, icon?, label?, sub?, color?, note? }`. `id` is a catalog service key unless `icon` is given. `color` is a 6-digit hex or it is dropped. `note` is plain text, max 400 chars. Positions are optional; missing ones are laid out. |
 | `edges[]` | Optional, max 300. Each `{ id?, source, target, label?, animated? }`. |
+| `pattern` | Optional string, max 200. The one-line "what it tests" shown above the diagram and on the share card. |
+| `description` | Optional string, max 600. The goal paragraph under it. |
 | `is_public` | Optional boolean, default `false`. `true` makes the link open for anyone and gives it a real card. |
 | `return` / `format` | `"svg"` (or `?format=svg` on the URL) adds the rendered `svg` to the response. |
 

@@ -327,25 +327,44 @@ test("a visitor cannot move a node on /demo and gets no edit, share or export co
 });
 
 // Phone real estate: the summary card folds away so the diagram gets the screen.
-test("the info card folds to a badge on a phone", async ({ browser }) => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await ctx.newPage();
-  await page.goto("/demo?name=url-shortener-like-bitly");
-  await page.waitForSelector(".react-flow__node", { timeout: 20000 });
-  await page.waitForTimeout(600);
+test("the info card folds to a badge on a phone", async ({ browser, baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: {
+      title: "Info card fold check", is_public: true,
+      pattern: "Read-heavy KV lookup: cache-first redirects",
+      description: "A long URL is shortened to a Base62 key; lookups redirect from a hot cache.",
+      nodes: [{ id: "user" }, { id: "apigw" }, { id: "dynamo" }],
+      edges: [{ source: "user", target: "apigw" }, { source: "apigw", target: "dynamo" }],
+    },
+  });
+  expect(create.status()).toBe(201);
+  const id = (await create.json()).url.split("/?id=")[1];
+  try {
+    const row = await (await api.get(`/api/system-designs/${id}`)).json();
+    expect(row.pattern).toContain("Read-heavy");
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(`/demo?name=${row.slug}`);
+    await page.waitForSelector(".react-flow__node", { timeout: 20000 });
+    await page.waitForTimeout(600);
 
-  const card = page.locator(".sd-info-card");
-  await expect(card).toHaveCount(1);
-  const open = (await card.boundingBox()).height;
+    const card = page.locator(".sd-info-card");
+    await expect(card).toHaveCount(1);
+    const open = (await card.boundingBox()).height;
 
-  await card.click();
-  await expect(page.locator(".sd-info-card")).toHaveCount(0);
-  const badge = page.locator(".sd-info-badge");
-  const box = await badge.boundingBox();
-  expect(box.height).toBeLessThan(open / 2);
-  expect(box.width).toBeLessThanOrEqual(40);
+    await card.click();
+    await expect(page.locator(".sd-info-card")).toHaveCount(0);
+    const badge = page.locator(".sd-info-badge");
+    const box = await badge.boundingBox();
+    expect(box.height).toBeLessThan(open / 2);
+    expect(box.width).toBeLessThanOrEqual(40);
 
-  await badge.click();
-  await expect(page.locator(".sd-info-card")).toHaveCount(1);
-  await ctx.close();
+    await badge.click();
+    await expect(page.locator(".sd-info-card")).toHaveCount(1);
+    await ctx.close();
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });
+  }
 });

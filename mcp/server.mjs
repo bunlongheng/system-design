@@ -203,10 +203,12 @@ server.registerTool(
         target: z.string().describe('target node id'),
         label: z.string().optional().describe('short edge label, e.g. "read/write"'),
       })).default([]).describe('Directed connections between node ids, in flow order'),
+      pattern: z.string().max(200).optional().describe('The one-line "what it tests" shown above the diagram and on the share card, e.g. "Read-heavy KV lookup: cache-first redirects"'),
+      description: z.string().max(600).optional().describe('The goal paragraph shown under the pattern, 1-3 sentences on what the design is for.'),
       public: z.boolean().optional().describe('Default true: anyone with the link can open it and the link unfurls with the diagram. false keeps it private (owner only; recipients get a 404 and a generic preview card).'),
     },
   },
-  async ({ title, nodes, edges, public: isPublic = true }) => {
+  async ({ title, nodes, edges, pattern, description, public: isPublic = true }) => {
     try {
       const gate = logoGate(nodes, edges)
       if (gate) return gate
@@ -220,8 +222,8 @@ server.registerTool(
       // produces, so it never lands on the canvas crammed.
       const storedNodes = arrangeNew(enforced.nodes, storedEdges)
       const { rows } = await db.query(
-        'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags, is_public) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[],$8) RETURNING id',
-        [o, title.trim(), slug, JSON.stringify(storedNodes), JSON.stringify(storedEdges), 'system-design', ['MCP'], isPublic],
+        'INSERT INTO system_designs (user_id, title, slug, nodes, edges, type, tags, is_public, pattern, description) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7::text[],$8,$9,$10) RETURNING id',
+        [o, title.trim(), slug, JSON.stringify(storedNodes), JSON.stringify(storedEdges), 'system-design', ['MCP'], isPublic, pattern?.trim() || null, description?.trim() || null],
       )
       const id = rows[0].id
 

@@ -57,6 +57,8 @@ A node is `{ id, x?, y?, icon?, label?, sub?, color?, note? }`:
 
 Edges are directed `{ source, target, label? }` using node ids, in flow order. Each edge becomes a numbered step in the app.
 
+- `pattern` (max 200) and `description` (max 600) are top-level fields on `create_system_design`: the one-line "what it tests" and the goal paragraph the detail view and the share card show above the diagram.
+
 ### Rules the server enforces
 
 - **Logo gate** - every node must render a real logo. A node that is neither a catalog service nor carries a valid `icon` is rejected on create and update, and the error lists the unresolved ids and points at `list_services`. No bare-letter placeholders. The gate is `lib/validate-design.js`, the same policy the HTTP API and AI generate use, so it also enforces the caps: max 100 nodes, max 300 edges, max 24KB per inline icon.

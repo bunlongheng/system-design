@@ -190,3 +190,38 @@ describe("POST /api/ai/system-designs - logo gate", () => {
     expect(written[0]).not.toHaveProperty("color");
   });
 });
+
+// The detail view and the share card render these 2 lines, and until now
+// nothing could set them.
+describe("POST /api/ai/system-designs - pattern and description", () => {
+  const orig = { s: process.env.SYSTEM_DESIGNS_API_SECRET, o: process.env.OWNER_USER_ID };
+  beforeEach(() => {
+    process.env.SYSTEM_DESIGNS_API_SECRET = SECRET;
+    process.env.OWNER_USER_ID = "731ace87-64e5-44db-bf2a-82265f06f4d9";
+    query.mockReset();
+    query.mockResolvedValueOnce({ rows: [] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+  });
+  afterEach(() => {
+    process.env.SYSTEM_DESIGNS_API_SECRET = orig.s;
+    process.env.OWNER_USER_ID = orig.o;
+  });
+
+  it("stores both, trimmed and bounded", async () => {
+    const res = mockRes();
+    await createSystemDesign(good(`Bearer ${SECRET}`, { ...VALID_BODY, pattern: "  Fan-out on write  ", description: "x".repeat(700) }), res);
+    expect(res.statusCode).toBe(201);
+    const args = query.mock.calls[1][1];
+    expect(args[8]).toBe("Fan-out on write");
+    expect(args[9]).toHaveLength(600);
+  });
+
+  it("stores null when they are absent or blank", async () => {
+    const res = mockRes();
+    await createSystemDesign(good(`Bearer ${SECRET}`, { ...VALID_BODY, pattern: "   " }), res);
+    expect(res.statusCode).toBe(201);
+    const args = query.mock.calls[1][1];
+    expect(args[8]).toBeNull();
+    expect(args[9]).toBeNull();
+  });
+});
