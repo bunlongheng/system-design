@@ -41,6 +41,9 @@ export function DetailView({
   // Owner only: is the open diagram public, and a click to flip it. Undefined
   // for anyone else, which hides the pill.
   isDiagramPublic, onToggleVisibility,
+  // Owner only: publish the moment the Share panel opens, so the pill flips and
+  // the preview shows the real card right then - not after Copy link.
+  onShareOpen,
 }) {
   const brand = brandFor(activeDiagram?.title)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -299,7 +302,7 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Share toggle */}
-          <button className={showSharePanel ? "is-on" : ""} onClick={() => setShowSharePanel(v => !v)} style={{
+          <button className={showSharePanel ? "is-on" : ""} onClick={() => { if (!showSharePanel) onShareOpen?.(); setShowSharePanel(v => !v) }} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: showSharePanel ? '#f1f5f9' : 'transparent',
@@ -505,7 +508,10 @@ export function DetailView({
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 6 }}>Link preview</div>
                 <img
-                  src={`/api/og?name=${encodeURIComponent(shareSlug)}`}
+                  /* Keyed on visibility: the card the browser fetched while the
+                     design was private is the generic one, and it must reload the
+                     instant the design is published. */
+                  src={`/api/og?name=${encodeURIComponent(shareSlug)}&v=${isDiagramPublic ? 'public' : 'private'}`}
                   alt="Share card preview"
                   width={208} height={109}
                   style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff' }}

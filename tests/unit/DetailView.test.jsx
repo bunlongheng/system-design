@@ -119,3 +119,23 @@ describe("visibility pill", () => {
     expect(screen.queryByRole("button", { name: /private/i })).toBeNull();
   });
 });
+
+// Pressing Share is the moment a diagram goes public - not Copy link later.
+describe("share opens = publish", () => {
+  it("calls onShareOpen when the panel opens, not when it closes", async () => {
+    const onShareOpen = vi.fn();
+    const setShowSharePanel = vi.fn();
+    setup({ onShareOpen, setShowSharePanel, showSharePanel: false });
+    await userEvent.click(screen.getAllByRole("button", { name: /^share$/i })[0]);
+    expect(onShareOpen).toHaveBeenCalledTimes(1);
+    cleanup();
+    setup({ onShareOpen, setShowSharePanel, showSharePanel: true });
+    await userEvent.click(screen.getAllByRole("button", { name: /^share$/i })[0]);
+    expect(onShareOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("keys the link preview on visibility so it reloads once published", () => {
+    setup({ showSharePanel: true, shareSlug: "x", shareUrl: "u", isDiagramPublic: false });
+    expect(screen.getByAltText("Share card preview").getAttribute("src")).toContain("v=private");
+  });
+});
