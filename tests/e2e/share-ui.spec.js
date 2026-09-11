@@ -408,6 +408,14 @@ test("phone header: matched tiles, finger-sized targets, aligned app logo", asyn
     // The header must not scroll sideways once everything grew.
     expect(await page.locator("header").first().evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
 
+    // Steps and the badge style are 2 separate controls, so a line sits between
+    // them - and only there, with no stray bar left by a hidden neighbour.
+    const bars = await page.locator("header .sd-divider").evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => r.x));
+    expect(bars).toHaveLength(1);
+    const steps = await box('header button:has-text("Steps")');
+    expect(bars[0]).toBeGreaterThan(steps.x + steps.width - 1);
+
     // The gallery app mark shares the 16px gutter with the content below it.
     await page.goto("/demo");
     await page.waitForSelector(".sd-app-logo", { timeout: 20000 });
