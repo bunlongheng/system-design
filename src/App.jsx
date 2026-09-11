@@ -903,6 +903,7 @@ export default function App() {
       })
       if (r.ok) {
         setActiveDiagram(a => (a ? { ...a, is_public: true } : a))
+        setDiagrams(ds => ds.map(d => (d.id === activeDiagram.id ? { ...d, is_public: true } : d)))
         showToastMsg('Published - anyone with the link can open it')
       }
     } catch { /* sharing the link still works if this fails */ }
@@ -1015,6 +1016,7 @@ export default function App() {
       onNoteChange={canAI ? onNoteChange : undefined}
       isDiagramPublic={activeDiagram?.is_public !== false}
       onToggleVisibility={canAI && activeDiagram?.id ? toggleVisibility : undefined}
+      onShareOpen={canAI && activeDiagram?.id ? ensureShareable : undefined}
     />
   )
 }
