@@ -10,6 +10,7 @@ import { Toast } from '../components/Toast'
 import { SnapGuides } from '../components/SnapGuides'
 import { Footer } from '../components/Footer'
 import { brandFor } from '../brands'
+import { fitOptions } from '../fitOptions'
 
 // ─── Detail (canvas) view ───────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ export function DetailView({
   // you pan or zoom away from it.
   const [fitted, setFitted] = useState(true)
   const fitNow = () => {
-    rfInstanceRef.current?.fitView({ padding: 0.12, duration: 400 })
+    rfInstanceRef.current?.fitView(fitOptions(nodes, edges, { padding: 0.12, duration: 400 }))
     setFitted(true)
   }
 
@@ -393,7 +394,7 @@ export function DetailView({
             /* Cmd/Ctrl is reserved for snap-align while dragging, so additive
                multi-select moves to Shift (box-select already uses Shift). */
             multiSelectionKeyCode="Shift"
-            onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => { inst.fitView({ padding: 0.15 }); setFitted(true) }, 0) }}
+            onInit={inst => { rfInstanceRef.current = inst; setTimeout(() => { inst.fitView(fitOptions(nodes, edges, { padding: 0.15 })); setFitted(true) }, 0) }}
             /* event is null when react-flow moves the viewport itself (fitView),
                and set when a finger or wheel did it - only the latter un-fits. */
             onMove={(event) => { if (event) setFitted(false) }}

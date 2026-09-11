@@ -149,3 +149,44 @@ describe("POST /api/ai/system-designs - visibility and share link", () => {
     expect(res.body.share_note).toBeUndefined();
   });
 });
+
+// The product's single hard rule: every node renders a real logo.
+describe("POST /api/ai/system-designs - logo gate", () => {
+  const orig = { s: process.env.SYSTEM_DESIGNS_API_SECRET, o: process.env.OWNER_USER_ID };
+  beforeEach(() => {
+    process.env.SYSTEM_DESIGNS_API_SECRET = SECRET;
+    process.env.OWNER_USER_ID = "731ace87-64e5-44db-bf2a-82265f06f4d9";
+    query.mockReset();
+    query.mockResolvedValueOnce({ rows: [] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+  });
+  afterEach(() => {
+    process.env.SYSTEM_DESIGNS_API_SECRET = orig.s;
+    process.env.OWNER_USER_ID = orig.o;
+  });
+
+  it("400s an unknown service id and names it", async () => {
+    const res = mockRes();
+    await createSystemDesign(good(`Bearer ${SECRET}`, { ...VALID_BODY, nodes: [{ id: "user" }, { id: "not-a-service" }] }), res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.unresolved).toEqual(["not-a-service"]);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("400s a script or protocol-relative icon", async () => {
+    for (const icon of ["javascript:alert(1)", "//evil.example/x.svg"]) {
+      const res = mockRes();
+      await createSystemDesign(good(`Bearer ${SECRET}`, { ...VALID_BODY, nodes: [{ id: "custom", icon, label: "X" }] }), res);
+      expect(res.statusCode, icon).toBe(400);
+    }
+  });
+
+  it("201s a bring-your-own icon and drops a non-hex colour", async () => {
+    const res = mockRes();
+    await createSystemDesign(good(`Bearer ${SECRET}`, { ...VALID_BODY, nodes: [{ id: "hub", icon: "/brand/hubspot.svg", label: "HubSpot", color: '#fff" onload="x' }], edges: [] }), res);
+    expect(res.statusCode).toBe(201);
+    const written = JSON.parse(query.mock.calls[1][1][3]);
+    expect(written[0].icon).toBe("/brand/hubspot.svg");
+    expect(written[0]).not.toHaveProperty("color");
+  });
+});

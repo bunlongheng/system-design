@@ -19,6 +19,7 @@ import { ownerId } from '../lib/auth-owner.js'
 import { SERVICES } from '../src/services.js'
 import { resolveNodeIcons } from '../lib/resolve-icon.js'
 import { cleanNote } from '../src/note.js'
+import { validateDesign, okColor } from '../lib/validate-design.js'
 
 const APP_URL = process.env.SYSTEM_DESIGNS_APP_URL || 'https://system-design-bheng.vercel.app'
 const urlFor = id => `${APP_URL}/?id=${id}`
@@ -53,7 +54,7 @@ function toStoredNodes(nodes) {
     // Optional bring-your-own-icon: caller supplies the logo, we just render it.
     ...(n.icon ? { icon: n.icon } : {}),
     ...(n.label ? { label: n.label } : {}),
-    ...(n.color ? { color: n.color } : {}),
+    ...(okColor(n.color) ? { color: n.color } : {}),
     ...(n.sub ? { sub: n.sub } : {}),
     ...(cleanNote(n.note) ? { note: cleanNote(n.note) } : {}),
   }))
@@ -106,15 +107,13 @@ function toStoredEdges(edges) {
     ...(e.label ? { label: e.label } : {}),
   }))
 }
-// A node resolves to a logo if it's a known catalog service OR it carries a custom
-// icon (a remote https URL, a data:image URI, or a same-origin /path).
-const okCustomIcon = ic => typeof ic === 'string' && (ic.startsWith('/') || ic.startsWith('https://') || /^data:image\//.test(ic))
-const unresolvedNodes = nodes => [...new Set(nodes.filter(n => !SERVICES[n.id]?.icon && !okCustomIcon(n.icon)).map(n => n.id))]
-// HARD GATE: refuse nodes with no logo. Returns an error result, or null if OK.
-const logoGate = nodes => {
-  const missing = unresolvedNodes(nodes)
-  return missing.length
-    ? fail(`Rejected: every node must render a real logo - use a known catalog service id (call list_services), OR give the node a custom "icon" (a remote https URL, a data:image URI, or a /path) plus a "label". Unresolved: ${missing.join(', ')}.`)
+// HARD GATE, shared with the API and AI generate (lib/validate-design.js): every
+// node renders a real logo, icons are well-formed, and the size caps hold.
+// Returns an error result, or null if OK.
+const logoGate = (nodes, edges = []) => {
+  const invalid = validateDesign({ nodes, edges })
+  return invalid
+    ? fail(`Rejected: ${invalid.error}${invalid.unresolved ? ' Call list_services for valid ids.' : ''}`)
     : null
 }
 
@@ -209,7 +208,7 @@ server.registerTool(
   },
   async ({ title, nodes, edges, public: isPublic = true }) => {
     try {
-      const gate = logoGate(nodes)
+      const gate = logoGate(nodes, edges)
       if (gate) return gate
       const { nodes: iconNodes, failed } = await resolveNodeIcons(nodes)
       if (failed.length) return fail(`Could not fetch the remote icon for node(s): ${failed.join(', ')}. Use an https image URL that returns image/* under 24KB (no redirects), or inline a data:image URI.`)
@@ -277,7 +276,7 @@ server.registerTool(
     try {
       let iconNodes = nodes
       if (nodes) {
-        const gate = logoGate(nodes); if (gate) return gate
+        const gate = logoGate(nodes, edges || []); if (gate) return gate
         const r = await resolveNodeIcons(nodes)
         if (r.failed.length) return fail(`Could not fetch the remote icon for node(s): ${r.failed.join(', ')}.`)
         iconNodes = r.nodes
