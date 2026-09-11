@@ -54,6 +54,9 @@ export function DetailView({
 }) {
   const brand = brandFor(activeDiagram?.title)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // The info card sits over the canvas. On a phone it covers a third of the
+  // diagram, so one tap folds it down to a small badge in the same corner.
+  const [infoOpen, setInfoOpen] = useState(true)
   // Fit is an ACTION, but it reads as a state on touch (the inline hover
   // background never clears without a mouseleave). So make the state real:
   // lit only while the canvas actually IS the fitted view, cleared the moment
@@ -416,14 +419,19 @@ export function DetailView({
           </ReactFlow>
           </NoteEditContext.Provider>
 
-          {/* Info card overlay - title + what it tests + goal, pinned top-left of the canvas */}
-          {(activeDiagram?.pattern || activeDiagram?.description) && (
-            <div className="sd-info-card" style={{
-              position: 'absolute', top: 16, left: 16, maxWidth: 340, zIndex: 40,
-              background: '#ffffff', color: '#1a2129', borderRadius: 0,
-              padding: '14px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-              border: '1px solid #e4e6e8',
-            }}>
+          {/* Info card overlay - what it tests + goal, pinned top-left of the canvas.
+              Tap it to fold it into a badge so the diagram gets the whole screen. */}
+          {(activeDiagram?.pattern || activeDiagram?.description) && (infoOpen ? (
+            <div className="sd-info-card" role="button" tabIndex={0}
+              aria-expanded="true" aria-label="Hide the diagram summary"
+              onClick={() => setInfoOpen(false)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setInfoOpen(false) } }}
+              style={{
+                position: 'absolute', top: 16, left: 16, maxWidth: 340, zIndex: 40,
+                background: '#ffffff', color: '#1a2129', borderRadius: 0,
+                padding: '14px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+                border: '1px solid #e4e6e8', cursor: 'pointer',
+              }}>
               {activeDiagram?.pattern && (
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6b7280', marginBottom: 3 }}>What it tests</div>
@@ -436,8 +444,29 @@ export function DetailView({
                   <div style={{ fontSize: 12, lineHeight: 1.5, color: '#444' }}>{activeDiagram.description}</div>
                 </div>
               )}
+              {/* Chevron, so it reads as foldable before anyone taps it. */}
+              <span className="sd-info-fold" aria-hidden="true" style={{
+                position: 'absolute', top: 8, right: 8, width: 18, height: 18, borderRadius: 5,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9aa0a6',
+              }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+              </span>
             </div>
-          )}
+          ) : (
+            <button type="button" className="sd-info-badge"
+              aria-expanded="false" aria-label="Show the diagram summary"
+              title="Show the diagram summary"
+              onClick={() => setInfoOpen(true)}
+              style={{
+                position: 'absolute', top: 16, left: 16, zIndex: 40,
+                width: 34, height: 34, borderRadius: '50%', padding: 0,
+                background: '#ffffff', border: '1px solid #e4e6e8', color: '#4b5563',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.10)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+            </button>
+          ))}
 
           {/* Zoom HUD */}
           <div ref={zoomHudRef} style={{
@@ -637,6 +666,7 @@ export function DetailView({
            its height with an internal scroll. */
         @media (max-width: 640px) {
           .sd-info-card { top: 10px !important; left: 10px !important; right: 10px !important; max-width: none !important; padding: 10px 12px !important; max-height: 34vh !important; overflow-y: auto !important; }
+          .sd-info-badge { top: 10px !important; left: 10px !important; }
         }
         /* Edge label badge - shared layout; per-edge gradient comes from
            --c1/--c2 set inline. Appearance switches by wrapper mode class. */
