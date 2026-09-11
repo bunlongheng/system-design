@@ -135,9 +135,11 @@ export function DetailView({
         </button>
 
         {/* Diagram name (with brand logo, matching the card) */}
+        {/* Same tile as the Back button beside it - 36px, radius 10, same border -
+            so the 2 marks at the start of the bar read as one pair. */}
         {brand && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, background: '#ffffff', border: '1px solid #e7e9ee', flexShrink: 0 }}>
-            <img src={brand.icon} alt="" width={13.5} height={13.5} style={{ objectFit: 'contain' }} />
+          <span className="sd-brand-tile" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, background: '#ffffff', border: '1px solid #e4e6e8', flexShrink: 0 }}>
+            <img src={brand.icon} alt="" width={16} height={16} style={{ objectFit: 'contain' }} />
           </span>
         )}
         <span className="sd-detail-title" style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
@@ -741,7 +743,15 @@ export function DetailView({
              the 4 desktop-only actions are gone - left in, they stack into a
              row of stray bars. */
           .sd-detail-header .sd-divider { display: none; }
-          .sd-detail-header button { padding: 0 8px !important; }
+          /* Phone targets, 25% up from the desktop sizes so they land under an
+             index finger: the Back tile and the brand tile go 36 -> 45, and the
+             toolbar actions 30 -> 38 inside their pill. With only 4 marks in the
+             bar there is room, and the header is 54px so 45 still clears it. */
+          .sd-detail-header button { padding: 0 10px !important; height: 38px !important; min-width: 38px !important; }
+          .sd-detail-header > button[aria-label="Back to gallery"] { width: 45px !important; height: 45px !important; }
+          .sd-detail-header .sd-brand-tile { width: 45px !important; height: 45px !important; }
+          .sd-detail-header .sd-brand-tile img { width: 20px !important; height: 20px !important; }
+          .sd-detail-header .sd-visibility { height: 32px !important; }
           /* The title has to yield, not push the buttons off-screen. */
           .sd-detail-title {
             min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
