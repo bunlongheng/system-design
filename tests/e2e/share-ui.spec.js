@@ -283,3 +283,45 @@ test("a step badge slides ALONG its edge, persists, and double-click resets it",
     await api.dispose();
   }
 });
+
+// The showcase is locked: a visitor sees the layout the owner set, and dragging
+// a node pans the canvas instead of moving it.
+test("a visitor cannot move a node on /demo and gets no edit, share or export controls", async ({ browser, baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: {
+      title: "Locked demo check", is_public: true,
+      nodes: [{ id: "user" }, { id: "apigw" }, { id: "lambda" }],
+      edges: [{ source: "user", target: "apigw" }, { source: "apigw", target: "lambda" }],
+    },
+  });
+  const id = (await create.json()).url.split("/?id=")[1];
+  try {
+    const row = await (await api.get(`/api/system-designs/${id}`)).json();
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }); // no owner cookie
+    const page = await ctx.newPage();
+    await page.goto(`/demo?name=${row.slug}`);
+    await page.waitForSelector(".react-flow__node", { timeout: 20000 });
+    await page.waitForTimeout(600);
+
+    const node = page.locator('.react-flow__node[data-id="user"]');
+    const before = await node.evaluate((el) => el.style.transform);
+    const box = await node.boundingBox();
+    await page.mouse.move(box.x + 40, box.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 260, box.y + 190, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(600);
+    expect(await node.evaluate((el) => el.style.transform)).toBe(before);
+
+    for (const name of ["Arrange", "Share", "Code"]) {
+      await expect(page.locator(`header button:has-text("${name}")`)).toHaveCount(0);
+    }
+    await expect(page.locator(".sd-share-panel")).toHaveCount(0);
+    await expect(page.locator('header button:has-text("Steps")')).toHaveCount(1);
+    await ctx.close();
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });
+  }
+});

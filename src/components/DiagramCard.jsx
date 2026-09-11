@@ -116,12 +116,12 @@ export function DiagramCard({ diagram, title, updatedAt, showBrand, difficulty, 
 
       {/* Actions (visibility handled by the CSS above) */}
       <div className="dc-actions" style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 4, zIndex: 2 }} onClick={e => e.stopPropagation()}>
-        <button onClick={onViewCode} title="View code" aria-label="View code"
+        {onViewCode && <button onClick={onViewCode} title="View code" aria-label="View code"
           style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #e4e6e8', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
           <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
           </svg>
-        </button>
+        </button>}
         {onDelete && (confirming ? (
           <button onClick={handleDeleteClick} onBlur={resetConfirm} title="Confirm delete"
             style={{ height: 26, borderRadius: 7, border: '1px solid #dc2626', background: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', fontSize: 10, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>

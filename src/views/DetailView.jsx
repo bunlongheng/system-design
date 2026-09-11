@@ -42,6 +42,12 @@ export function DetailView({
   // Owner only: is the open diagram public, and a click to flip it. Undefined
   // for anyone else, which hides the pill.
   isDiagramPublic, onToggleVisibility,
+  // A visitor on /demo or a shared link sees the diagram exactly as the owner
+  // left it: nodes are locked, and the tools that change or take a copy of it
+  // (Arrange, Undo/Redo, Code, Share, every export) are not rendered. They keep
+  // Fit, Details, Steps and the badge style - reading aids that cannot break
+  // the layout. Too much freedom on a showcase only makes it look broken.
+  canEdit = true,
   // Owner only: publish the moment the Share panel opens, so the pill flips and
   // the preview shows the real card right then - not after Copy link.
   onShareOpen,
@@ -156,7 +162,7 @@ export function DetailView({
           boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: '4px 6px',
         }}>
           {/* Code toggle */}
-          <button className="sd-hide-mobile" onClick={() => setShowDetailCode(v => !v)} style={{
+          {canEdit && <button className="sd-hide-mobile" onClick={() => setShowDetailCode(v => !v)} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: showDetailCode ? '#f1f5f9' : 'transparent',
@@ -171,7 +177,7 @@ export function DetailView({
               <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
             </svg>
             <span className="sd-btn-label">Code</span>
-          </button>
+          </button>}
 
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
@@ -196,7 +202,7 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Auto-arrange: re-lay-out left-to-right, spread out, step-ordered, then fit */}
-          <button className="sd-hide-mobile" onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
+          {canEdit && <button className="sd-hide-mobile" onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: 'transparent', color: '#64748b',
@@ -210,12 +216,12 @@ export function DetailView({
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4M17.5 10v4M6.5 10v7.5H10"/>
             </svg>
             <span className="sd-btn-label">Arrange</span>
-          </button>
+          </button>}
 
           {/* Undo / redo. They appear once there IS something to undo, so a
               freshly opened diagram keeps a clean toolbar, and each button dims
               when its own direction is empty. */}
-          {(canUndo || canRedo) && [
+          {canEdit && (canUndo || canRedo) && [
             { key: 'undo', label: 'Undo', on: onUndo, enabled: canUndo, hint: 'Undo (Cmd+Z)', d: 'M3 10h13a5 5 0 0 1 0 10h-1M3 10l4-4M3 10l4 4' },
             { key: 'redo', label: 'Redo', on: onRedo, enabled: canRedo, hint: 'Redo (Cmd+Shift+Z)', d: 'M21 10H8a5 5 0 0 0 0 10h1M21 10l-4-4M21 10l-4 4' },
           ].map(b => (
@@ -304,7 +310,7 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Share toggle */}
-          <button className={showSharePanel ? "is-on" : ""} onClick={() => { if (!showSharePanel) onShareOpen?.(); setShowSharePanel(v => !v) }} style={{
+          {canEdit && <button className={showSharePanel ? "is-on" : ""} onClick={() => { if (!showSharePanel) onShareOpen?.(); setShowSharePanel(v => !v) }} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: showSharePanel ? '#f1f5f9' : 'transparent',
@@ -319,7 +325,7 @@ export function DetailView({
               <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
             </svg>
             <span className="sd-btn-label">Share</span>
-          </button>
+          </button>}
 
           {/* Delete lives last, past Share, and always behind a modal, because
               it is the one destructive action in this bar. It is a SOFT delete -
@@ -354,7 +360,7 @@ export function DetailView({
       <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
 
         {/* Code panel (left, slide-in) */}
-        {showDetailCode && (
+        {canEdit && showDetailCode && (
           <div className="sd-code-panel" style={{
             width: 340, flexShrink: 0, background: '#ffffff', borderRight: '1px solid #e4e6e8',
             display: 'flex', flexDirection: 'column', animation: 'sd-slide-left 0.2s ease-out',
@@ -401,7 +407,7 @@ export function DetailView({
             onMove={(event) => { if (event) setFitted(false) }}
             onMoveEnd={(_, viewport) => flashZoomHud(viewport.zoom)}
             fitView fitViewOptions={{ padding: 0.15 }}
-            nodesDraggable nodesConnectable={false} elementsSelectable
+            nodesDraggable={canEdit} nodesConnectable={false} elementsSelectable={canEdit}
             panOnDrag zoomOnScroll minZoom={0.2} maxZoom={2.5}
             proOptions={{ hideAttribution: true }}
           >
@@ -495,7 +501,7 @@ export function DetailView({
         )}
 
         {/* Share panel (right side) */}
-        {showSharePanel && (
+        {canEdit && showSharePanel && (
           <div className="sd-share-panel" style={{
             width: 240, flexShrink: 0, background: '#f1f5f9', borderLeft: '1px solid #e2e8f0',
             display: 'flex', flexDirection: 'column', padding: '20px 16px',

@@ -73,3 +73,14 @@ describe("private lock", () => {
     expect(screen.queryByTitle(/Private: only you can open it/)).toBeNull();
   });
 });
+
+// The gallery on /demo offers no code panel either - that is an export.
+describe("view code", () => {
+  it("renders the button only when a handler is given", () => {
+    setup({ onViewCode: undefined });
+    expect(screen.queryByRole("button", { name: /view code/i })).toBeNull();
+    cleanup();
+    setup();
+    expect(screen.getByRole("button", { name: /view code/i })).toBeInTheDocument();
+  });
+});

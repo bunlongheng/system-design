@@ -250,7 +250,7 @@ export function IndexView({
                 showBrand
                 difficulty={d.difficulty}
                 onOpen={() => onOpen(d)}
-                onViewCode={() => onViewCode(d)}
+                onViewCode={canAI ? () => onViewCode(d) : undefined}
                 onDelete={canAI && !d.sample ? () => onDeleteDiagram(d.id) : undefined}
                 isPrivate={canAI && d.is_public === false}
               />
