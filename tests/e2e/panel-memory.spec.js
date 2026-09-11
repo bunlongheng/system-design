@@ -77,3 +77,34 @@ test("Steps survives back-to-gallery and reopen, and off stays off", async ({ pa
     await api.dispose();
   }
 });
+
+// Panel memory is the owner's. A visitor on a shared link gets the diagram and
+// nothing on top of it - the share panel that was open when the owner last
+// looked used to slide out over the canvas on their phone.
+test("a visitor on a shared link gets no panels, even if the owner left share + steps open", async ({ browser, baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: { ...DESIGN, title: `${DESIGN.title} visitor`, is_public: true },
+  });
+  const id = (await create.json()).url.split("/?id=")[1];
+  try {
+    const saved = await api.patch(`/api/system-designs/${id}`, {
+      headers: { cookie: OWNER_COOKIE },
+      data: { view_state: { panels: ["share", "steps"], badge: "dark" } },
+    });
+    expect(saved.ok()).toBe(true);
+    const row = await (await api.get(`/api/system-designs/${id}`)).json();
+
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } }); // no cookie: a recipient on a phone
+    const page = await ctx.newPage();
+    await page.goto(`/demo?name=${row.slug}`);
+    await page.waitForSelector(".react-flow__node", { timeout: 20000 });
+    await page.waitForTimeout(800);
+    await expect(page.locator(".sd-share-panel")).toHaveCount(0);
+    expect((await page.locator('button:has-text("Steps")').first().evaluate((e) => e.className))).not.toContain("is-on");
+    await ctx.close();
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });
+  }
+});

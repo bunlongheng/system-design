@@ -178,6 +178,8 @@ export default function App() {
   const [listError, setListError] = useState(false) // gallery fetch failed
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
+  // Panel memory waiting for ownership to settle on a cold deep link (see openDiagram).
+  const pendingPanels = useRef(null)
   const [devBypass, setDevBypass] = useState(false)
   const canAI = (Boolean(user) || IS_DEV) && !isDemo
   const rfInstance = useRef(null)
@@ -410,10 +412,15 @@ export default function App() {
     // `panels` is the set that was open. Rows saved before this shape used a
     // single `panel`, so fold that in rather than dropping their state.
     const open = Array.isArray(v.panels) ? v.panels : v.panel ? [v.panel] : []
-    setShowSteps(open.includes('steps'))
-    setShowDetailsPanel(open.includes('details'))
-    setShowSharePanel(open.includes('share'))
-    setShowDetailCode(open.includes('code'))
+    // Panel memory is the OWNER's. Someone opening a shared link gets the
+    // diagram and nothing on top of it - the panels open when the owner last
+    // looked used to slide out over the canvas on their phone. The share panel
+    // is never restored for anyone: opening it is an action (it publishes).
+    // A cold ?name= load resolves before /api/auth/me answers, so while
+    // ownership is unknown the panels wait and apply once it settles.
+    setShowSharePanel(false)
+    if (canAI) applyPanels(open)
+    else { applyPanels([]); pendingPanels.current = authChecked ? null : open }
     if (['dark', 'silver', 'color', 'plain'].includes(v.badge)) setBadgeMode(v.badge)
     const raw = d.data.nodes || []
     // Use the owner's saved layout when every node has a stored position;
@@ -437,6 +444,18 @@ export default function App() {
       window.history.replaceState({}, '', url)
     }
   }
+
+  function applyPanels(open) {
+    setShowSteps(open.includes('steps'))
+    setShowDetailsPanel(open.includes('details'))
+    setShowDetailCode(open.includes('code'))
+  }
+  useEffect(() => {
+    if (!authChecked) return
+    const open = pendingPanels.current
+    pendingPanels.current = null
+    if (open && canAI && view === 'detail') applyPanels(open)
+  }, [authChecked, canAI, view])
 
   // Persist the canvas layout (owner only) a beat after a drag ends, so a
   // rearranged diagram stays put on reopen instead of resetting to auto-layout.
@@ -682,16 +701,17 @@ export default function App() {
   // four booleans - a shape the API can validate.
   const viewSaveTimer = useRef(null)
   const openPanels = [
-    showSteps && 'steps', showDetailsPanel && 'details',
-    showSharePanel && 'share', showDetailCode && 'code',
+    showSteps && 'steps', showDetailsPanel && 'details', showDetailCode && 'code',
   ].filter(Boolean)
   const panelKey = openPanels.join(',')
   useEffect(() => {
     if (view !== 'detail' || !canAI || !activeDiagram?.id) return
     const prev = activeDiagram.view_state || {}
-    const prevKey = (Array.isArray(prev.panels) ? prev.panels : prev.panel ? [prev.panel] : []).join(',')
-    if (prevKey === panelKey && prev.badge === badgeMode) return
+    const prevKey = (Array.isArray(prev.panels) ? prev.panels : prev.panel ? [prev.panel] : []).filter(p => p !== 'share').join(',')
+    // Cancel first: a state that has come back to what is saved (a deferred
+    // restore landing a render later) must not let an older timer save a reset.
     clearTimeout(viewSaveTimer.current)
+    if (prevKey === panelKey && prev.badge === badgeMode) return
     const savingId = activeDiagram.id
     viewSaveTimer.current = setTimeout(() => {
       const view_state = { panels: panelKey ? panelKey.split(',') : [], badge: badgeMode }
