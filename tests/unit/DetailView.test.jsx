@@ -96,3 +96,26 @@ describe("DetailView", () => {
     expect(setShowDetailCode).toHaveBeenCalled();
   });
 });
+
+// The owner can open every diagram, so a private one looks shared when it is
+// not. The header pill says which it is - and only the owner sees it.
+describe("visibility pill", () => {
+  it("shows Private for a private diagram and flips on click", async () => {
+    const onToggleVisibility = vi.fn();
+    setup({ isDiagramPublic: false, onToggleVisibility });
+    const pill = screen.getByRole("button", { name: /private/i });
+    expect(pill).toHaveAttribute("title", expect.stringMatching(/404/));
+    await userEvent.click(pill);
+    expect(onToggleVisibility).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Public for a public diagram", () => {
+    setup({ isDiagramPublic: true, onToggleVisibility: vi.fn() });
+    expect(screen.getByRole("button", { name: /public/i })).toBeInTheDocument();
+  });
+
+  it("is hidden for anyone who is not the owner", () => {
+    setup({ isDiagramPublic: false });
+    expect(screen.queryByRole("button", { name: /private/i })).toBeNull();
+  });
+});

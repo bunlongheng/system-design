@@ -4,6 +4,7 @@ import '@xyflow/react/dist/style.css'
 import diagramData from '../data/diagram.json'
 import ImportFormatsModal from '../components/ImportFormatsModal'
 import { nodeTypes } from '../components/AwsNode'
+import { NoteEditContext } from '../components/noteEditContext'
 import { edgeTypes } from '../components/GradientEdge'
 import { Toast } from '../components/Toast'
 import { SnapGuides } from '../components/SnapGuides'
@@ -34,6 +35,12 @@ export function DetailView({
   onArrange,
   canUndo, canRedo, onUndo, onRedo,
   onDeleteDiagram,
+  // (nodeId, note) => void when the owner is signed in; undefined otherwise,
+  // which makes every node note read-only (shared links, /demo).
+  onNoteChange,
+  // Owner only: is the open diagram public, and a click to flip it. Undefined
+  // for anyone else, which hides the pill.
+  isDiagramPublic, onToggleVisibility,
 }) {
   const brand = brandFor(activeDiagram?.title)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -100,6 +107,30 @@ export function DetailView({
         <span className="sd-detail-title" style={{ fontSize: 15, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
           {activeDiagram?.title || 'Untitled diagram'}
         </span>
+
+        {/* Visibility pill, owner only. The owner can open every diagram, so a
+            private one looks shared when it is not - the recipient gets a 404
+            and Slack a generic card. This says which it is, and flips it. */}
+        {onToggleVisibility && (
+          <button type="button" className="sd-visibility" data-public={isDiagramPublic ? '1' : '0'}
+            onClick={onToggleVisibility}
+            title={isDiagramPublic
+              ? 'Public: anyone with the link can open it, and it previews with the diagram. Click to make it private.'
+              : 'Private: only you can open it. Anyone else gets a 404 and a generic preview card. Click to publish.'}
+            style={{
+              flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
+              height: 22, padding: '0 9px 0 7px', borderRadius: 999, cursor: 'pointer',
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
+              background: isDiagramPublic ? '#ecfdf5' : '#fffbeb',
+              color: isDiagramPublic ? '#047857' : '#b45309',
+              border: `1px solid ${isDiagramPublic ? '#a7f3d0' : '#fde68a'}`,
+            }}>
+            {isDiagramPublic
+              ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+            {isDiagramPublic ? 'Public' : 'Private'}
+          </button>
+        )}
 
         {/* Layout save indicator: spinner while saving, green check when saved. */}
         {saveState === 'saving' && (
@@ -350,6 +381,7 @@ export function DetailView({
 
         {/* Canvas */}
         <div style={{ flex: 1, position: 'relative', background: '#ffffff' }}>
+          <NoteEditContext.Provider value={onNoteChange || null}>
           <ReactFlow
             className={`${showSteps ? 'sd-steps-on ' : ''}sd-badge-${badgeMode}`}
             nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
@@ -371,6 +403,7 @@ export function DetailView({
             <Background variant="dots" gap={24} size={1} color="#e6e8eb" />
             <SnapGuides guides={snapGuides} />
           </ReactFlow>
+          </NoteEditContext.Provider>
 
           {/* Info card overlay - title + what it tests + goal, pinned top-left of the canvas */}
           {(activeDiagram?.pattern || activeDiagram?.description) && (
@@ -664,6 +697,9 @@ export function DetailView({
         @media (prefers-reduced-motion: reduce) {
           .sd-danger { animation: none; opacity: 0.75; }
         }
+        /* "+ note" ghost on a card with no note: owner only, shown on hover. */
+        .sd-note-add { opacity: 0; transition: opacity 0.12s; }
+        .react-flow__node:hover .sd-note-add, .react-flow__node.selected .sd-note-add { opacity: 1; }
         /* Step number, first thing in the badge - hidden until Steps is on. */
         .sd-step-chip { display: none; }
         .sd-steps-on .sd-step-chip {

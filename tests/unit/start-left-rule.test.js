@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 // HARD RULE: a diagram starts on the LEFT and reads left-to-right. Never from the
 // bottom, never backward.
@@ -11,7 +12,10 @@ beforeAll(async () => {
   const src = readFileSync("mcp/server.mjs", "utf8");
   const body = src.slice(src.indexOf("function toStoredNodes"), src.indexOf("function toStoredEdges"));
   const mod = await import(
-    "data:text/javascript," + encodeURIComponent(body + "\nexport { toStoredNodes, enforceStartLeft }")
+    // toStoredNodes bounds a node note through the shared helper, so hand it the real one.
+    "data:text/javascript," + encodeURIComponent(
+      `import { cleanNote } from "${pathToFileURL("src/note.js").href}";\n` + body + "\nexport { toStoredNodes, enforceStartLeft }",
+    )
   );
   ({ toStoredNodes, enforceStartLeft } = mod);
 });

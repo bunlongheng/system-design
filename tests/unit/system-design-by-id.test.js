@@ -170,6 +170,62 @@ describe("/api/system-designs/:id", () => {
     expect(written.find((n) => n.id === "a")).toBeTruthy(); // untouched node survives
   });
 
+  // A note is one deliberate edit, merged by id: only the note changes, and
+  // '' takes it off. Branding and position come from storage, never the client.
+  it("PATCH notes sets, replaces and removes a note by node id and nothing else", async () => {
+    const stored = [
+      { id: "tray", label: "Tray", color: "#1f2937", position: { x: 0, y: 0 }, note: "old" },
+      { id: "recurly", position: { x: 300, y: 0 }, note: "keep me" },
+      { id: "ubs", position: { x: 600, y: 0 } },
+    ];
+    query.mockResolvedValueOnce({ rows: [{ nodes: stored }] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
+    r.body = { notes: [
+      { id: "tray", note: "  Reads Recurly subscriptions, branches per app.  ", color: "#ff0000", position: { x: 9, y: 9 } },
+      { id: "ubs", note: "" },
+      { id: "ghost", note: "no such node" },
+    ] };
+    await systemDesignById(r, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.noted).toBe(2);
+    const written = JSON.parse(query.mock.calls[1][1][0]);
+    const tray = written.find((n) => n.id === "tray");
+    expect(tray.note).toBe("Reads Recurly subscriptions, branches per app.");
+    expect(tray.color).toBe("#1f2937");            // branding untouched
+    expect(tray.position).toEqual({ x: 0, y: 0 }); // position untouched
+    expect(written.find((n) => n.id === "recurly").note).toBe("keep me");
+    expect(written.find((n) => n.id === "ubs")).not.toHaveProperty("note");
+    expect(written.find((n) => n.id === "ghost")).toBeUndefined();
+  });
+
+  it("PATCH notes is owner-only and rejects an empty list", async () => {
+    const res = mockRes();
+    const anon = req("PATCH", ID);
+    anon.body = { notes: [{ id: "tray", note: "x" }] };
+    await systemDesignById(anon, res);
+    expect(res.statusCode).toBe(401);
+
+    const res2 = mockRes();
+    const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
+    r.body = { notes: [] };
+    await systemDesignById(r, res2);
+    expect(res2.statusCode).toBe(400);
+  });
+
+  // A layout save carries the note along with the rest of the stored node.
+  it("PATCH nodes (layout save) keeps a stored note", async () => {
+    query.mockResolvedValueOnce({ rows: [{ nodes: [{ id: "tray", position: { x: 0, y: 0 }, note: "stays" }] }] });
+    query.mockResolvedValueOnce({ rows: [{ id: ID }] });
+    const res = mockRes();
+    const r = req("PATCH", ID, undefined, `sd_session=${signSession({ email: process.env.OWNER_EMAIL })}`);
+    r.body = { nodes: [{ id: "tray", position: { x: 50, y: 50 } }] };
+    await systemDesignById(r, res);
+    const written = JSON.parse(query.mock.calls[1][1][0]);
+    expect(written[0]).toEqual({ id: "tray", position: { x: 50, y: 50 }, note: "stays" });
+  });
+
   // Dragged step-badge positions. Merged BY EDGE ID into the stored edges, so a
   // stale or malicious client cannot drop labels or rewrite endpoints.
   it("PATCH edges stores labelT and never touches label or endpoints", async () => {
