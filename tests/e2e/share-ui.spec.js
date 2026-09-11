@@ -372,3 +372,52 @@ test("the info card starts folded on a phone and the badge opens it", async ({ b
     await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });
   }
 });
+
+// Phone chrome: the 2 marks at the start of the bar are one pair, the actions
+// are finger-sized, and the app mark lines up with the content below it.
+test("phone header: matched tiles, finger-sized targets, aligned app logo", async ({ browser, baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    // "Bitly" is in the brand map, so the title carries a brand tile.
+    data: { title: "Bitly", is_public: true, nodes: [{ id: "user" }, { id: "apigw" }], edges: [{ source: "user", target: "apigw" }] },
+  });
+  const id = (await create.json()).url.split("/?id=")[1];
+  try {
+    const row = await (await api.get(`/api/system-designs/${id}`)).json();
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+
+    await page.goto(`/demo?name=${row.slug}`);
+    await page.waitForSelector(".react-flow__node", { timeout: 20000 });
+    await page.waitForTimeout(500);
+
+    const box = (sel) => page.locator(sel).first().boundingBox();
+    const back = await box('header button[aria-label="Back to gallery"]');
+    const tile = await box("header .sd-brand-tile");
+    expect(Math.round(tile.width)).toBe(Math.round(back.width));
+    expect(Math.round(tile.height)).toBe(Math.round(back.height));
+    expect(back.height).toBeGreaterThanOrEqual(44);
+
+    // Every action left in the locked toolbar is a real target.
+    const actions = await page.locator("header button").evaluateAll((els) =>
+      els.map((e) => { const r = e.getBoundingClientRect(); return { w: r.width, h: r.height }; }).filter((r) => r.w > 0));
+    expect(actions.length).toBeGreaterThanOrEqual(3);
+    for (const a of actions) expect(a.h).toBeGreaterThanOrEqual(38);
+
+    // The header must not scroll sideways once everything grew.
+    expect(await page.locator("header").first().evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+
+    // The gallery app mark shares the 16px gutter with the content below it.
+    await page.goto("/demo");
+    await page.waitForSelector(".sd-app-logo", { timeout: 20000 });
+    const logo = await box(".sd-app-logo");
+    expect(Math.round(logo.width)).toBe(40);
+    expect(Math.round(logo.x)).toBe(16);
+    const mainPadLeft = await page.locator(".sd-main").evaluate((e) => parseFloat(getComputedStyle(e).paddingLeft));
+    expect(Math.round(logo.x)).toBe(Math.round(mainPadLeft));
+    await ctx.close();
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });
+  }
+});

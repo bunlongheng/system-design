@@ -68,6 +68,11 @@ export function IndexView({
         @media (max-width: 480px) { .sd-grid-demo { grid-template-columns: 1fr !important; } }
         @media (max-width: 640px) {
           .sd-header { padding: 0 16px !important; }
+          /* The inner bar kept its own 32px, so the logo sat 48px in while the
+             cards started at 16px. Same gutter as .sd-main now. */
+          .sd-header-inner { padding: 0 !important; gap: 12px !important; }
+          /* An app mark at 28px reads like a favicon on a phone. */
+          .sd-app-logo { width: 40px !important; height: 40px !important; border-radius: 11px !important; }
           .sd-search-wrap { flex: 1 !important; width: auto !important; }
           .sd-search-wrap input { width: 100% !important; }
           .sd-main { padding: 16px 16px 100px !important; }
@@ -99,9 +104,9 @@ export function IndexView({
 
       {/* ── Header ── */}
       <header className="sd-header" style={{ background: '#ffffff', borderBottom: '1px solid #e4e6e8', height: 56, paddingTop: 'env(safe-area-inset-top)', boxSizing: 'content-box', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div style={{ maxWidth: 1600, margin: '0 auto', padding: '0 32px', height: '100%', display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div className="sd-header-inner" style={{ maxWidth: 1600, margin: '0 auto', padding: '0 32px', height: '100%', display: 'flex', alignItems: 'center', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <img src="/icon.png" width={28} height={28} alt="" style={{ borderRadius: 8 }} />
+            <img className="sd-app-logo" src="/icon-96.png" width={28} height={28} alt="" style={{ borderRadius: 8 }} />
             <span style={{ fontSize: 14, fontWeight: 700, color: '#1c1e21', letterSpacing: '-0.01em' }}>System Design</span>
             {isDemo && <span style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', background: '#eaf2ff', borderRadius: 999, padding: '3px 9px' }}>Demos</span>}
           </div>
