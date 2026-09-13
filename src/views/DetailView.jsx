@@ -167,7 +167,7 @@ export function DetailView({
             {isDiagramPublic
               ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
               : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
-            {isDiagramPublic ? 'Public' : 'Private'}
+            <span className="sd-vis-label">{isDiagramPublic ? 'Public' : 'Private'}</span>
           </button>
         )}
 
@@ -210,7 +210,7 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Fit button */}
-          <button className={`sd-hide-mobile${fitted ? ' is-on' : ''}`} onClick={fitNow}
+          <button className={`sd-hide-mobile sd-show-mobile${fitted ? ' is-on' : ''}`} onClick={fitNow}
             title={fitted ? 'Already fitted to the screen' : 'Fit the diagram to the screen'} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
@@ -230,7 +230,7 @@ export function DetailView({
           <div className="sd-divider" style={{ width: 1, height: 18, background: '#e4e6e8', flexShrink: 0, margin: '0 2px' }} />
 
           {/* Auto-arrange: re-lay-out left-to-right, spread out, step-ordered, then fit */}
-          {canEdit && <button className="sd-hide-mobile" onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
+          {canEdit && <button className="sd-hide-mobile sd-show-mobile" onClick={() => onArrange && onArrange()} title="Auto-arrange the layout" style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
             background: 'transparent', color: '#64748b',
@@ -364,7 +364,7 @@ export function DetailView({
               passed down when you can actually edit, so there is one gate,
               not two. */}
           {onDeleteDiagram && (
-            <button onClick={() => setConfirmDelete(true)} title="Delete this diagram" style={{
+            <button className="sd-hide-mobile" onClick={() => setConfirmDelete(true)} title="Delete this diagram" style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '0 10px', height: 30, borderRadius: 8, border: 'none',
               background: 'transparent', color: '#dc2626',
@@ -735,12 +735,32 @@ export function DetailView({
            fit and pan, and the panels are reachable once the canvas is open. */
         @media (max-width: 640px) {
           .sd-detail-header {
-            overflow-x: hidden !important;
+            /* Scroll rather than hide: on a very small phone the owner's bar is
+               wider than the screen, and hiding the overflow put a real button
+               out of reach with no sign it was there. */
+            overflow-x: auto !important;
             padding: 0 8px !important;
             gap: 2px !important;
           }
           .sd-detail-header .sd-btn-label { display: none; }
           .sd-detail-header .sd-hide-mobile { display: none !important; }
+          /* 2 earn their place back on a phone: Fit is the only way home after
+             pinching around, and Arrange is the owner's one-tap tidy. Delete
+             gives up its seat for them - a destructive tap is the last thing a
+             crowded phone bar needs, and it is still there on a desktop.
+             The visibility pill drops to its icon: the green globe and the amber
+             lock still say which it is, and the label is in its aria-label. */
+          .sd-detail-header .sd-hide-mobile.sd-show-mobile { display: flex !important; }
+          .sd-detail-header .sd-vis-label { display: none; }
+          .sd-detail-header .sd-visibility { padding: 0 8px !important; }
+        }
+        /* Small phones (SE and friends): the owner's bar is 1 button wider than
+           the room, and the header hides its overflow, so tighten rather than
+           silently clip something off the right edge. */
+        @media (max-width: 400px) {
+          .sd-detail-header { padding: 0 6px !important; gap: 0 !important; }
+          .sd-detail-header button { padding: 0 6px !important; min-width: 34px !important; }
+          .sd-detail-header .sd-divider-phone { margin: 0 2px !important; }
           /* Dividers separate groups that no longer exist once the labels and
              the 4 desktop-only actions are gone - left in, they stack into a
              row of stray bars. */
