@@ -432,26 +432,43 @@ test("phone header: matched tiles, finger-sized targets, aligned app logo", asyn
 
 // Fit is the only way back to the fitted view after pinching around, so it has
 // to survive on a phone. Nothing may be clipped out of reach either.
-test("phone keeps Fit reachable and never hides a button out of reach", async ({ browser }) => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await ctx.newPage();
-  await page.goto("/demo?name=url-shortener-like-bitly");
-  await page.waitForSelector(".react-flow__node", { timeout: 20000 });
-  await page.waitForTimeout(600);
+// It builds its own diagram: a fresh CI database has none of the curated demos.
+test("phone keeps Fit reachable and never hides a button out of reach", async ({ browser, baseURL }) => {
+  const api = await request.newContext({ baseURL });
+  const create = await api.post("/api/ai/system-designs", {
+    headers: { Authorization: `Bearer ${SECRET}` },
+    data: {
+      title: "Phone fit button check", is_public: true,
+      nodes: ["user", "cloudfront", "apigw", "lambda", "dynamo"].map((id) => ({ id })),
+      edges: [["user", "cloudfront"], ["cloudfront", "apigw"], ["apigw", "lambda"], ["lambda", "dynamo"]].map(([source, target]) => ({ source, target })),
+    },
+  });
+  expect(create.status()).toBe(201);
+  const id = (await create.json()).url.split("/?id=")[1];
+  try {
+    const row = await (await api.get(`/api/system-designs/${id}`)).json();
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(`/demo?name=${row.slug}`);
+    await page.waitForSelector(".react-flow__node", { timeout: 20000 });
+    await page.waitForTimeout(600);
 
-  await expect(page.locator('header button:has-text("Fit")')).toHaveCount(1);
-  // Overflow may exist on a tiny screen, but it must always be scrollable.
-  expect(await page.locator("header").first().evaluate((e) => getComputedStyle(e).overflowX)).not.toBe("hidden");
+    await expect(page.locator('header button:has-text("Fit")')).toHaveCount(1);
+    // Overflow may exist on a tiny screen, but it must always be scrollable.
+    expect(await page.locator("header").first().evaluate((e) => getComputedStyle(e).overflowX)).not.toBe("hidden");
 
-  // Pinching away and pressing Fit returns to a fitted view.
-  const scale = () => page.locator(".react-flow__viewport").evaluate((el) => Number((/scale\(([\d.]+)\)/.exec(el.style.transform) || [])[1]));
-  const fitted = await scale();
-  await page.mouse.move(195, 400);
-  await page.mouse.wheel(0, -600);
-  await page.waitForTimeout(500);
-  expect(await scale()).not.toBe(fitted);
-  await page.locator('header button:has-text("Fit")').click();
-  await page.waitForTimeout(700);
-  expect(Math.abs((await scale()) - fitted)).toBeLessThan(0.05);
-  await ctx.close();
+    // Pinching away and pressing Fit returns to a fitted view.
+    const scale = () => page.locator(".react-flow__viewport").evaluate((el) => Number((/scale\(([\d.]+)\)/.exec(el.style.transform) || [])[1]));
+    const fitted = await scale();
+    await page.mouse.move(195, 400);
+    await page.mouse.wheel(0, -600);
+    await page.waitForTimeout(500);
+    expect(await scale()).not.toBe(fitted);
+    await page.locator('header button:has-text("Fit")').click();
+    await page.waitForTimeout(700);
+    expect(Math.abs((await scale()) - fitted)).toBeLessThan(0.05);
+    await ctx.close();
+  } finally {
+    await api.delete(`/api/system-designs/${id}`, { headers: { cookie: OWNER_COOKIE } });
+  }
 });
